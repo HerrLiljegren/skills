@@ -1,0 +1,4 @@
+interface:
+  display_name: "Where Were We"
+  short_description: "Rebuild current work context and next steps."
+  default_prompt: "Use $where-were-we to catch me up on the current workspace."
