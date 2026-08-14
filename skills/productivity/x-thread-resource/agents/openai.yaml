@@ -1,0 +1,4 @@
+interface:
+  display_name: "X Thread Resource"
+  short_description: "Parse X threads into source-grounded evidence."
+  default_prompt: "Use $x-thread-resource to read this X thread and preserve its source evidence."

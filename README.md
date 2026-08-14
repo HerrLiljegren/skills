@@ -13,3 +13,5 @@ skills are listed here; experimental and retired work stays in its bucket.
   Neovim, and Zed Vim-mode questions using the real editor configuration
 - [`where-were-we`](./skills/productivity/where-were-we/SKILL.md) — reconstruct
   interrupted work and identify the next useful step
+- [`x-thread-resource`](./skills/productivity/x-thread-resource/SKILL.md) — parse
+  X threads into source-grounded evidence

@@ -10,3 +10,5 @@ Daily non-code workflows and personal utilities.
   questions using the real editor configuration
 - [`where-were-we`](./where-were-we/SKILL.md) — reconstruct interrupted work
   and identify the next useful step
+- [`x-thread-resource`](./x-thread-resource/SKILL.md) — parse X threads into
+  source-grounded evidence
