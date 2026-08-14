@@ -3,6 +3,13 @@
 Small, reusable skills for personal engineering and workflow tasks. Promoted
 skills are listed here; experimental and retired work stays in its bucket.
 
+## Engineering
+
+### User-invoked
+
+- [`primer`](./skills/engineering/primer/SKILL.md) — create a ready-to-paste
+  prompt for continuing current technical work in a fresh agent session
+
 ## Productivity
 
 ### Model-invoked

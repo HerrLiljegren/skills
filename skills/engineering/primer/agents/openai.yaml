@@ -1,0 +1,7 @@
+interface:
+  display_name: "Primer"
+  short_description: "Create a technical continuation primer."
+  default_prompt: "Use $primer to create a ready-to-paste prompt for continuing this technical work in a fresh agent session."
+
+policy:
+  allow_implicit_invocation: false
