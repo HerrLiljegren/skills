@@ -1,0 +1,7 @@
+interface:
+  display_name: "Worktree Closeout"
+  short_description: "Deliver and close an approved issue worktree."
+  default_prompt: "Use $worktree-closeout to deliver and close one approved issue worktree without a pull request."
+
+policy:
+  allow_implicit_invocation: false
