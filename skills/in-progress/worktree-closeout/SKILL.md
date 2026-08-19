@@ -51,6 +51,11 @@ verification notes through the repository's configured tracker workflow.
 Confirm the item belongs to this repository, is assigned correctly, and is in
 a state that permits delivery.
 
+Read the live work-item type metadata and its transitions. Resolve the exact
+terminal state available from the item's current state; repository prose is
+guidance, not a substitute for the tracker schema. Stop if the tracker cannot
+prove one exact transition.
+
 Inspect the complete source-branch status and diff, including staged,
 unstaged, and untracked files. Account for every change because standard
 `wt merge` stages all changes by default. Confirm required reviews and
@@ -64,14 +69,14 @@ flow. Treat Worktrunk and installed command help as the source of truth for
 current command behavior.
 
 Completion criterion: every change and acceptance criterion is accounted for,
-verification evidence is named, and the intended remote target is current and
-pushable.
+verification evidence is named, the intended remote target is current and
+pushable, and the exact tracker transition is proven.
 
 ## 3. Obtain the delivery gate
 
 Present one compact gate containing:
 
-- issue ID, title, state, and assignee
+- issue ID, title, current state, proposed terminal state, and assignee
 - source branch, worktree path, and Herdr workspace ID
 - target branch and remote
 - files and commits included by the squash
@@ -89,9 +94,14 @@ remote delivery, tracker mutation, and cleanup effects.
 ## 4. Deliver and close the issue
 
 From the surviving orchestrator, run standard `wt merge` against the resolved
-worktree and explicit target branch. Preserve repository commit conventions
-and issue-reference requirements. Stop on any conflict or failed hook and
-report the retained recovery state.
+worktree and explicit target branch:
+
+```bash
+wt -C "$worktree_path" merge "$target_branch" --yes --format json
+```
+
+Preserve repository commit conventions and issue-reference requirements. Stop
+on any conflict or failed hook and report the retained recovery state.
 
 After a successful merge:
 
@@ -101,12 +111,13 @@ After a successful merge:
 4. Link the final target commit to the issue.
 5. Post concise closeout evidence covering target containment, verification,
    acceptance criteria, and residual risk.
-6. Move only the delivered issue to its completed state. Parent and related
-   work items require their own explicit authority.
+6. Move only the delivered issue to the exact terminal state approved in the
+   gate. Parent and related work items require their own explicit authority.
 
 If remote delivery or tracker closeout fails, stop and report the exact partial
 state. The issue remains open until remote containment and required evidence
-are proven.
+are proven. A rejected tracker value requires a new gate before attempting a
+different state.
 
 Completion criterion: the exact final commit is on the approved remote target,
 linked to the issue, and the issue is closed with complete evidence.
