@@ -6,7 +6,9 @@ disable-model-invocation: true
 
 # Nightly builds
 
-1. Run `scripts/check.py` from this skill's directory with Python 3:
+1. Run quietly: omit skill announcements, command preambles, and success
+   acknowledgements. Run `scripts/check.py` from this skill's directory with
+   Python 3:
 
    ```bash
    python3 scripts/check.py
@@ -14,6 +16,15 @@ disable-model-invocation: true
 
    Requires Azure CLI, its installed `azure-devops` extension, and authorized
    CLI authentication or `AZURE_DEVOPS_EXT_PAT` supplied by the environment.
+   In Codex, this command needs outbound network access. When the execution
+   environment declares network access restricted, request approved execution
+   with `sandbox_permissions="require_escalated"` for this read-only command.
+   When a sandboxed attempt fails to resolve `dev.azure.com`, retry the same
+   script with approved network access before reporting pipeline health. This
+   changes execution permissions, not the lookup method. Keep the command,
+   working directory, and authentication environment unchanged. If approval
+   is unavailable or denied, report the check as blocked by network access.
+
    The script owns pipeline IDs, selection, and evidence limits. Read its
    `--help` for the contract. Use this script for lookup; authentication or
    API errors require repairing that access, not another lookup method.
