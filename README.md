@@ -7,10 +7,17 @@ skills are listed here; experimental and retired work stays in its bucket.
 
 ### User-invoked
 
+- [`nightly-builds`](./skills/engineering/nightly-builds/SKILL.md) — check
+  Tengella nightly builds and diagnose failures; silent when healthy
 - [`primer`](./skills/engineering/primer/SKILL.md) — create a ready-to-paste
   prompt for continuing current technical work in a fresh agent session
 
 ## Productivity
+
+### User-invoked
+
+- [`chatgpt-fakturor`](./skills/productivity/chatgpt-fakturor/SKILL.md) —
+  download or email selected ChatGPT billing PDFs
 
 ### Model-invoked
 

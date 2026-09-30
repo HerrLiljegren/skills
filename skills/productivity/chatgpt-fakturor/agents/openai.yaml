@@ -1,0 +1,7 @@
+interface:
+  display_name: "ChatGPT Fakturor"
+  short_description: "Download or email ChatGPT billing PDFs."
+  default_prompt: "Use $chatgpt-fakturor to download my latest ChatGPT invoice and receipt."
+
+policy:
+  allow_implicit_invocation: false

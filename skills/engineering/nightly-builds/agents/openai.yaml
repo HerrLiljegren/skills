@@ -1,0 +1,5 @@
+interface:
+  display_name: "Nightly builds"
+  short_description: "Check nightly builds; explain failures; stay silent on success"
+policy:
+  allow_implicit_invocation: false

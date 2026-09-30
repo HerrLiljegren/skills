@@ -2,6 +2,11 @@
 
 Daily non-code workflows and personal utilities.
 
+## User-invoked
+
+- [`chatgpt-fakturor`](./chatgpt-fakturor/SKILL.md) — download or email
+  selected ChatGPT billing PDFs
+
 ## Model-invoked
 
 - [`codex-resets`](./codex-resets/SKILL.md) — safely show available Codex reset
