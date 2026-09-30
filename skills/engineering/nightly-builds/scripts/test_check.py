@@ -3,7 +3,9 @@
 import contextlib
 import io
 import os
+import subprocess
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import check
@@ -73,12 +75,49 @@ class ContractTests(unittest.TestCase):
         self.results[54] = None
         self.assertEqual(check.check(self.fetch)[0], 2)
 
-    def test_redacts_credentials_and_rejects_redirects(self):
-        with patch.dict(os.environ, {"PERSONAL_ACCESS_TOKEN": "test-credential"}):
+    def test_redacts_credentials(self):
+        with patch.dict(os.environ, {"AZURE_DEVOPS_EXT_PAT": "test-credential"}):
             self.assertNotIn("test-credential", check.redact("test-credential password=private Bearer abc123"))
             self.assertNotIn("private", check.redact("password=private"))
-        with self.assertRaises(check.CheckError):
-            check.NoRedirect().redirect_request(None, None, 302, "", {}, "https://other.example")
+
+    def test_cli_queries_are_explicit_and_use_argument_arrays(self):
+        with patch.object(check.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, '{"value": []}', '')) as run:
+            check.get("builds", {"definitions": 54, "statusFilter": "completed",
+                                 "queryOrder": "queueTimeDescending", "$top": 1})
+            command = run.call_args.args[0]
+            self.assertEqual(command, ["az", "devops", "invoke", "--organization", check.ORGANIZATION,
+                "--detect", "false", "--area", "build", "--resource", "builds",
+                "--http-method", "GET", "--api-version", "7.1", "--only-show-errors",
+                "--output", "json", "--route-parameters", "project=Tengella", "--query-parameters",
+                "definitions=54", "statusFilter=completed", "queryOrder=queueTimeDescending", "$top=1"])
+            self.assertEqual(run.call_args.kwargs["env"]["AZURE_EXTENSION_USE_DYNAMIC_INSTALL"], "no")
+            check.get("builds/5400/timeline")
+            self.assertIn("timeline", run.call_args.args[0])
+            self.assertIn("buildId=5400", run.call_args.args[0])
+
+    def test_cli_log_files_are_read_and_deleted(self):
+        paths = []
+        def execute(command, **kwargs):
+            path = Path(command[command.index("--out-file") + 1])
+            paths.append(path)
+            self.assertIn("logs", command)
+            self.assertIn("logId=3", command)
+            self.assertIn("text/plain", command)
+            path.write_text("##[error] compilation failed\n", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, '', '')
+        with patch.object(check.subprocess, "run", side_effect=execute):
+            self.assertIn("compilation failed", check.get("builds/5400/logs/3", raw=True))
+        self.assertFalse(paths[0].exists())
+
+    def test_cli_error_timeout_and_invalid_json_are_check_errors(self):
+        for response in (subprocess.CompletedProcess([], 1, '', 'ERROR: TF400813: user identity denied'),
+                         subprocess.CompletedProcess([], 0, '<html>login</html>', '')):
+            with self.subTest(response=response), patch.object(check.subprocess, "run", return_value=response):
+                with self.assertRaises(check.CheckError):
+                    check.get("builds")
+        with patch.object(check.subprocess, "run", side_effect=subprocess.TimeoutExpired("az", 45)):
+            with self.assertRaisesRegex(check.CheckError, "timeout"):
+                check.get("builds")
 
 
 if __name__ == "__main__":

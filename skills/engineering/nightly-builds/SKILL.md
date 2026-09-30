@@ -6,16 +6,22 @@ disable-model-invocation: true
 
 # Nightly builds
 
-1. Run `scripts/check.py` from this skill's directory with Python 3. Load the
-   configured credential without displaying it:
+1. Run `scripts/check.py` from this skill's directory with Python 3:
 
    ```bash
-   bash -c 'source "$HOME/.config/azure-devops-mcp/env"; export PERSONAL_ACCESS_TOKEN; python3 "$1/scripts/check.py"' -- <skill-directory>
+   python3 scripts/check.py
    ```
 
+   Requires Azure CLI, its installed `azure-devops` extension, and authorized
+   CLI authentication or `AZURE_DEVOPS_EXT_PAT` supplied by the environment.
    The script owns pipeline IDs, selection, and evidence limits. Read its
    `--help` for the contract. Use this script for lookup; authentication or
    API errors require repairing that access, not another lookup method.
+
+   Every request uses `az devops invoke` with an explicit organization,
+   project, GET method, API version, and resource (`builds`, `timeline`, or
+   `logs`). Repository detection and automatic extension installation are
+   disabled. Temporary raw log files are deleted after extracting evidence.
 
 2. Branch on the exit code:
    - **0:** all selected builds succeeded. End silently, with no acknowledgement
@@ -41,4 +47,3 @@ The check selects the latest **completed** run per pipeline by queue time,
 including manual runs of these nightly definitions. It checks current pipeline
 health, not every historical failure or whether last night's schedule ran.
 An in-progress run leaves the previous completed result authoritative.
-

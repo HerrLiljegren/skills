@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Read-only, deterministic Azure DevOps build evidence. Requires PERSONAL_ACCESS_TOKEN."""
+"""Read-only, deterministic build evidence through the Azure DevOps CLI."""
 
 import argparse
 import base64
 import json
 import os
 import re
+import subprocess
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
+import tempfile
+from pathlib import Path
 
-BASE = "https://dev.azure.com/tengella/Tengella"
+ORGANIZATION = "https://dev.azure.com/tengella"
+PROJECT = "Tengella"
+BASE = f"{ORGANIZATION}/{PROJECT}"
 DEFINITIONS = (54, 55, 53)
 ERROR = re.compile(r"##\[error\]|\berror\b|exception|\bfailed\b|failure|fatal", re.I)
 
@@ -20,14 +22,8 @@ class CheckError(Exception):
     pass
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        # Keep the Authorization header confined to the configured API host.
-        raise CheckError("Azure DevOps redirected the request; repair API access")
-
-
 def redact(text):
-    token = os.environ.get("PERSONAL_ACCESS_TOKEN", "")
+    token = os.environ.get("AZURE_DEVOPS_EXT_PAT", "")
     if token:
         text = text.replace(token, "[REDACTED]")
         encoded = base64.b64encode((":" + token).encode()).decode()
@@ -38,26 +34,46 @@ def redact(text):
 
 
 def get(path, params=None, *, raw=False):
-    token = os.environ.get("PERSONAL_ACCESS_TOKEN")
-    if not token:
-        raise CheckError("PERSONAL_ACCESS_TOKEN is missing; load the configured Azure DevOps credential")
-    query = urllib.parse.urlencode({"api-version": "7.1", **(params or {})})
-    request = urllib.request.Request(
-        f"{BASE}/_apis/build/{path}?{query}",
-        headers={"Authorization": "Basic " + base64.b64encode((":" + token).encode()).decode(),
-                 "Accept": "text/plain" if raw else "application/json"},
-    )
+    parts = path.split("/")
+    routes = [f"project={PROJECT}"]
+    if parts == ["builds"]:
+        resource = "builds"
+    elif len(parts) == 3 and parts[0] == "builds" and parts[2] == "timeline":
+        resource = "timeline"
+        routes.append(f"buildId={int(parts[1])}")
+    elif len(parts) == 4 and parts[0] == "builds" and parts[2] == "logs":
+        resource = "logs"
+        routes.extend((f"buildId={int(parts[1])}", f"logId={int(parts[3])}"))
+    else:
+        raise CheckError("Unsupported build lookup")
+    command = ["az", "devops", "invoke", "--organization", ORGANIZATION,
+               "--detect", "false", "--area", "build", "--resource", resource,
+               "--http-method", "GET", "--api-version", "7.1",
+               "--only-show-errors", "--output", "json", "--route-parameters", *routes]
+    if params:
+        command.extend(("--query-parameters", *(f"{key}={value}" for key, value in params.items())))
+    environment = {**os.environ, "AZURE_EXTENSION_USE_DYNAMIC_INSTALL": "no",
+                   "AZURE_CORE_COLLECT_TELEMETRY": "no", "AZURE_LOGGING_ENABLE_LOG_FILE": "false"}
     try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
-            # A login page must never be mistaken for a successful API lookup.
-            if raw and "text/plain" not in response.headers.get("Content-Type", ""):
-                raise CheckError("Log API did not return text/plain")
-            body = response.read().decode("utf-8-sig")
-        return body if raw else json.loads(body)
-    except urllib.error.HTTPError as error:
-        raise CheckError(f"Azure DevOps returned HTTP {error.code}") from None
+        # invoke requires --out-file for text logs. Keep raw logs private and ephemeral.
+        with tempfile.TemporaryDirectory(prefix="nightly-builds-") as directory:
+            log = Path(directory) / "log.txt"
+            if raw:
+                command.extend(("--accept-media-type", "text/plain", "--out-file", str(log)))
+            response = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                                      timeout=45, env=environment)
+            if response.returncode:
+                message = redact(response.stderr.strip())
+                if "TF400813" in message:
+                    message = "Azure DevOps authorization failed (TF400813)"
+                raise CheckError(message[:2000] or f"az devops invoke exited {response.returncode}")
+            return log.read_text(encoding="utf-8-sig") if raw else json.loads(response.stdout)
+    except FileNotFoundError:
+        raise CheckError("Azure CLI or requested log output is missing") from None
+    except subprocess.TimeoutExpired:
+        raise CheckError("az devops invoke exceeded the 45-second timeout") from None
     except OSError:
-        raise CheckError("Azure DevOps network lookup failed") from None
+        raise CheckError("Unable to run az devops invoke or read its output") from None
     except (ValueError, UnicodeError):
         raise CheckError("Azure DevOps returned an invalid API response") from None
 
@@ -143,7 +159,8 @@ def main():
     parser = argparse.ArgumentParser(description=(
         "Check latest completed runs of definitions 54, 55, 53 (queue time descending, all reasons). "
         "Stdout is empty on success (exit 0); JSON failure evidence exits 1; "
-        "incomplete lookup exits 2. Auth: PERSONAL_ACCESS_TOKEN only. No retries or alternate auth."))
+        "incomplete lookup exits 2. Uses az devops invoke with existing Azure CLI authentication "
+        "or AZURE_DEVOPS_EXT_PAT. No alternate lookup methods."))
     parser.add_argument("--build-id", type=int)
     parser.add_argument("--log-id", type=int)
     parser.add_argument("--start-line", type=int)
