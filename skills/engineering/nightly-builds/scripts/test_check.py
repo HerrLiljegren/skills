@@ -22,6 +22,17 @@ class ContractTests(unittest.TestCase):
                 return {"value": []}
             return {"value": [{"id": definition * 100, "definition": {"id": definition, "name": "Nightly"},
                                "status": "completed", "result": self.results[definition]}]}
+        if path == "resultsbybuild":
+            if self.bad_tests:
+                raise check.CheckError("Azure DevOps returned HTTP 404")
+            return {"value": [{"runId": 7, "id": index} for index in range(3)]}
+        if path == "runs/7/results":
+            self.assertEqual(params["outcomes"], "Failed")
+            return {"value": [{"automatedTestName": f"Suite.Test{index}", "automatedTestStorage": "suite.dll",
+                               "errorMessage": "Unable to resolve service" if index < 2 else "Timeout",
+                               "stackTrace": "   at Suite.Test()\n" * 20,
+                               "failingSince": {"date": "2026-10-03", "build": {"number": "develop-4952"}}}
+                              for index in range(3)]}
         if path.endswith("timeline"):
             if self.bad_timeline:
                 raise check.CheckError("Azure DevOps returned HTTP 403")
@@ -35,6 +46,7 @@ class ContractTests(unittest.TestCase):
         self.results = dict.fromkeys(check.DEFINITIONS, "succeeded")
         self.missing = None
         self.bad_timeline = False
+        self.bad_tests = False
 
     def test_success_is_silent_and_never_fetches_logs(self):
         code, payload = check.check(self.fetch)
@@ -56,6 +68,24 @@ class ContractTests(unittest.TestCase):
                 self.assertIn("CS1002", str(step["log"]))
                 self.assertLessEqual(len(step["log"]["lines"]), 128)
                 self.assertTrue(step["log"]["truncated"])
+
+    def test_failed_tests_are_grouped_by_assembly_and_error(self):
+        self.results[54] = "failed"
+        code, payload = check.check(self.fetch)
+        self.assertEqual(code, 1)
+        tests = payload["failures"][0]["test_failures"]
+        self.assertEqual((tests["failed"], tests["truncated"]), (3, False))
+        self.assertEqual([group["tests"] for group in tests["groups"]],
+                         [["Suite.Test0", "Suite.Test1"], ["Suite.Test2"]])
+        self.assertEqual(tests["groups"][0]["failing_since"], {"date": "2026-10-03", "build": "develop-4952"})
+        self.assertEqual(len(tests["groups"][0]["stack"]), 10)
+
+    def test_unavailable_test_results_is_lookup_error(self):
+        self.results[54], self.bad_tests = "failed", True
+        code, payload = check.check(self.fetch)
+        self.assertEqual(code, 2)
+        self.assertIn("404", payload["failures"][0]["test_lookup_error"])
+        self.assertTrue(payload["failures"][0]["steps"])
 
     def test_missing_build_does_not_hide_other_failure(self):
         self.missing, self.results[55] = 54, "failed"
@@ -94,6 +124,12 @@ class ContractTests(unittest.TestCase):
             check.get("builds/5400/timeline")
             self.assertIn("timeline", run.call_args.args[0])
             self.assertIn("buildId=5400", run.call_args.args[0])
+            check.get("resultsbybuild", {"buildId": 5400})
+            command = run.call_args.args[0]
+            self.assertEqual(command[command.index("--area") + 1], "testresults")
+            self.assertEqual(command[command.index("--api-version") + 1], "7.1-preview")
+            check.get("runs/7/results", {"outcomes": "Failed"})
+            self.assertIn("runId=7", run.call_args.args[0])
 
     def test_cli_log_files_are_read_and_deleted(self):
         paths = []

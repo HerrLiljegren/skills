@@ -15,6 +15,8 @@ ORGANIZATION = "https://dev.azure.com/tengella"
 PROJECT = "Tengella"
 BASE = f"{ORGANIZATION}/{PROJECT}"
 DEFINITIONS = (54, 55, 53)
+TEST_RESULT_LIMIT = 200
+TEST_DETAIL_LIMIT = 50
 ERROR = re.compile(r"##\[error\]|\berror\b|exception|\bfailed\b|failure|fatal", re.I)
 
 
@@ -36,6 +38,7 @@ def redact(text):
 def get(path, params=None, *, raw=False):
     parts = path.split("/")
     routes = [f"project={PROJECT}"]
+    area, version = "build", "7.1"
     if parts == ["builds"]:
         resource = "builds"
     elif len(parts) == 3 and parts[0] == "builds" and parts[2] == "timeline":
@@ -44,11 +47,17 @@ def get(path, params=None, *, raw=False):
     elif len(parts) == 4 and parts[0] == "builds" and parts[2] == "logs":
         resource = "logs"
         routes.extend((f"buildId={int(parts[1])}", f"logId={int(parts[3])}"))
+    elif parts == ["resultsbybuild"]:
+        # Only this preview route lists results by build; test/runs resolves to a statistics route.
+        area, resource, version = "testresults", "resultsbybuild", "7.1-preview"
+    elif len(parts) == 3 and parts[0] == "runs" and parts[2] == "results":
+        area, resource = "test", "results"
+        routes.append(f"runId={int(parts[1])}")
     else:
         raise CheckError("Unsupported build lookup")
     command = ["az", "devops", "invoke", "--organization", ORGANIZATION,
-               "--detect", "false", "--area", "build", "--resource", resource,
-               "--http-method", "GET", "--api-version", "7.1",
+               "--detect", "false", "--area", area, "--resource", resource,
+               "--http-method", "GET", "--api-version", version,
                "--only-show-errors", "--output", "json", "--route-parameters", *routes]
     if params:
         command.extend(("--query-parameters", *(f"{key}={value}" for key, value in params.items())))
@@ -92,6 +101,38 @@ def excerpt(text):
                       for index in sorted(selected)]}
 
 
+def test_failures(build_id, fetch):
+    listed = fetch("resultsbybuild", {"buildId": build_id, "outcomes": "Failed",
+                                      "$top": TEST_RESULT_LIMIT})["value"]
+    evidence = {"failed": len(listed), "truncated": len(listed) >= TEST_RESULT_LIMIT, "groups": []}
+    groups = {}
+    remaining = TEST_DETAIL_LIMIT
+    for run_id in sorted({int(row["runId"]) for row in listed}):
+        if remaining <= 0:
+            evidence["truncated"] = True
+            break
+        rows = fetch(f"runs/{run_id}/results", {"outcomes": "Failed", "$top": remaining})["value"]
+        remaining -= len(rows)
+        for row in rows:
+            message = redact(row.get("errorMessage") or "")[:1000]
+            # Group by assembly and error so one root cause does not repeat per test.
+            key = (row.get("automatedTestStorage"), message)
+            group = groups.get(key)
+            if group is None:
+                since = row.get("failingSince") or {}
+                group = groups[key] = {
+                    "storage": row.get("automatedTestStorage"), "error": message,
+                    "stack": [redact(line)[:300] for line in (row.get("stackTrace") or "").splitlines()[:10]],
+                    "failing_since": {"date": since.get("date"),
+                                      "build": (since.get("build") or {}).get("number")},
+                    "run_url": f"{BASE}/_TestManagement/Runs?runId={run_id}", "tests": []}
+                evidence["groups"].append(group)
+            group["tests"].append(row.get("automatedTestName") or row.get("testCaseTitle"))
+    if len(listed) > TEST_DETAIL_LIMIT:
+        evidence["truncated"] = True
+    return evidence
+
+
 def inspect(build, fetch):
     build_id = int(build["id"])
     evidence = {key: build.get(key) for key in
@@ -115,6 +156,10 @@ def inspect(build, fetch):
             except CheckError as error:
                 step["lookup_error"] = str(error)
         evidence["steps"].append(step)
+    try:
+        evidence["test_failures"] = test_failures(build_id, fetch)
+    except (CheckError, KeyError, TypeError, ValueError) as error:
+        evidence["test_lookup_error"] = str(error) if isinstance(error, CheckError) else "Malformed test results response"
     if not evidence["steps"]:
         evidence["evidence_gap"] = "No failing steps or error issues in the timeline; cause undetermined"
     return evidence
@@ -145,7 +190,7 @@ def check(fetch=get):
                            "url": f"{BASE}/_build/results?buildId={build['id']}",
                            "lookup_error": str(error) if isinstance(error, CheckError) else "Malformed timeline response"}
             failures.append(failure)
-            if failure.get("lookup_error") or any(step.get("lookup_error") for step in failure.get("steps", [])):
+            if failure.get("lookup_error") or failure.get("test_lookup_error") or any(step.get("lookup_error") for step in failure.get("steps", [])):
                 errors.append({"definition_id": definition, "error": "Failure evidence lookup incomplete"})
         except (CheckError, KeyError, TypeError, ValueError) as error:
             errors.append({"definition_id": definition,
@@ -158,7 +203,8 @@ def check(fetch=get):
 def main():
     parser = argparse.ArgumentParser(description=(
         "Check latest completed runs of definitions 54, 55, 53 (queue time descending, all reasons). "
-        "Stdout is empty on success (exit 0); JSON failure evidence exits 1; "
+        "Stdout is empty on success (exit 0); JSON failure evidence, including failed test results "
+        "grouped by assembly and error, exits 1; "
         "incomplete lookup exits 2. Uses az devops invoke with existing Azure CLI authentication "
         "or AZURE_DEVOPS_EXT_PAT. No alternate lookup methods."))
     parser.add_argument("--build-id", type=int)
