@@ -1,0 +1,4 @@
+interface:
+  display_name: "Luna crew"
+  short_description: "Orchestrate Luna 6 workers in Herdr panes"
+  default_prompt: "Use $luna-crew to orchestrate Luna 6 workers for this task."
