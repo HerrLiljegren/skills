@@ -114,15 +114,17 @@ For the returned lane:
 - `done` or `idle`: read `HANDBACK.md`. A worker that stopped without a
   handback gets one prompt to write it.
 
-Review the diff against the brief's decisions and scope: `git diff --stat`,
-then the files where the design risk is. Trust the handback's verification
-evidence. Run a check yourself only for the final gate before a commit, or
-when the evidence is missing or contradicts the diff.
+Review the unstaged diff against the brief's decisions and scope:
+`git diff --stat`, then the files where the design risk is. Trust the
+handback's verification evidence. Run a check yourself only for the final gate
+before a commit, or when the evidence is missing or contradicts the diff.
 
 Then pick one:
 
-- **Accept**: commit using the handback's proposed message, adjusted as
-  needed. You own commits; workers stage only.
+- **Accept**: stage exactly the brief's owned paths with
+  `git add -- <owned paths>`, check `git diff --cached --stat` against the
+  handback, then commit using the handback's proposed message, adjusted as
+  needed. You own staging and commits.
 - **Fix**: put corrections or new directions in a new `BRIEF.md` of kind
   `fix`, then brief the worker. Keep steering in briefs; answer a `blocked`
   worker inline in its thread.

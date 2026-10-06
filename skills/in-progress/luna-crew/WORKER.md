@@ -14,7 +14,8 @@ are settled: build on them.
 - Run every verification command listed under **Done when**, plus the
   repository's own required checks for the files you changed. Keep full
   output in log files under your task directory.
-- Stage your changes with `git add`. The orchestrator commits.
+- Leave changes in the working tree; list every path you created, changed, or
+  deleted in the handback. Codex's sandbox keeps `.git` read-only.
 
 ## Task kinds
 
@@ -36,7 +37,7 @@ Status: done | blocked | partial
 <what now exists, 3-6 lines>
 
 ## Changes
-<git diff --stat output; "none" for scout>
+<git status --short for owned paths, plus git diff --stat; "none" for scout>
 
 ## Verification
 | Command | Result | Log |
@@ -50,5 +51,5 @@ Status: done | blocked | partial
 ```
 
 Done when `HANDBACK.md` exists, every **Done when** check is in the
-verification table with its result, and `git status` shows only staged
-changes inside your scope.
+verification table with its result, and `git status` shows changes only
+inside the brief's owned paths.
