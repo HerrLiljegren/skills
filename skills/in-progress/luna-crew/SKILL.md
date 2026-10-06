@@ -42,12 +42,12 @@ Settle architecture and open questions with the user first; those are yours.
 Then cut the work into **lanes** and tasks.
 
 A lane is one standing worker named for the workstream it owns, the way the
-user thinks about the work: `api`, `cli`, `web`, `importer`, `reviewer`. Use
-a short lowercase name (`[a-z][a-z0-9-]*`) and never a task number or
-`worker-1`. Its pane is labelled `<lane> · <focus>`, so the user can see who
-does what at a glance. A lane keeps its worker across tasks, so follow-up
-work goes to the lane whose context already holds the area. Propose the lanes
-to the user along with the plan.
+user thinks about it: `api`, `cli`, `web`, `importer`, `reviewer`. Use a short
+lowercase name (`[a-z][a-z0-9-]*`) and never a task number or `worker-1`. Its
+pane is labelled `<lane> · <focus>`, so the user can see who does what. Keep a
+worker for at most three briefs. Before the fourth brief, or sooner when the
+next task is outside its context, close its pane and start a fresh worker with
+the same lane name. Propose the lanes to the user along with the plan.
 
 Then cut each lane's work into tasks. Each task is one of **scout**,
 **implement**, or **fix**, has disjoint file ownership from every task running
@@ -98,10 +98,11 @@ Make one blocking call per round:
 luna.sh wait <lane> [<lane>...]
 ```
 
-It returns `<lane> <status>` as soon as any worker stops working. When your
-harness re-invokes you when a background command exits (Claude Code
-`run_in_background`), run it in the background and end your turn. Otherwise
-run it in the foreground with the longest allowed timeout. The script does
+It returns `<lane> <status>` as soon as any worker stops working. Claude Code:
+run it in the background and end your turn; the harness re-invokes you when
+it exits. Codex: call the wait with `yield_time_ms: 30000` (the Codex 0.160
+maximum) and a small `max_output_tokens`. On each yield, re-enter the wait in
+the same session with `yield_time_ms: 30000` until it exits. The script does
 the polling; your turns go to handbacks.
 
 ## 4. Review the handback
@@ -122,17 +123,22 @@ Then pick one:
 
 - **Accept**: commit using the handback's proposed message, adjusted as
   needed. You own commits; workers stage only.
-- **Fix**: write the review notes into a new `BRIEF.md` (task kind fix) and
-  brief the same lane. Its context still holds the work.
+- **Fix**: put corrections or new directions in a new `BRIEF.md` of kind
+  `fix`, then brief the worker. Keep steering in briefs; answer a `blocked`
+  worker inline in its thread.
 - **Escalate**: an open question in the handback that is an architecture or
   product decision goes to the user.
+
+For a bug hunt, make one task whose Done-when is the failing command going
+**red → green**. Point its worker to the `diagnosing-bugs` skill.
 
 Update `PLAN.md`. Completion criterion: every task in `PLAN.md` is accepted,
 or escalated with the user's answer recorded.
 
 ## Context budget
 
-Your context is the expensive part. At each milestone in `PLAN.md`, prefer
-compacting, or a fresh session that resumes from `PLAN.md`, over carrying
-the old context forward. Close a finished worker with `herdr pane close <pane>` when
-it will not get follow-up work.
+Use one orchestrator session per workstream, started in the repository or
+worktree and resumed from `.scratch/luna/PLAN.md`. Compact at every PLAN
+milestone and whenever context passes about 300k tokens. Claude Code's
+auto-compaction at 30% is a backstop. Close a finished worker with
+`herdr pane close <pane>` when it will not get follow-up work.
