@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Deterministic Herdr plumbing for Luna 6 workers.
-#   luna.sh start <lane> <focus> [--from PANE] [--direction right|down]
+#   luna.sh start <lane> <focus> [--model ID] [--effort low|medium|high] [--from PANE] [--direction right|down]
 #   luna.sh rename <lane> <new-lane> <focus>
 #   luna.sh brief <lane> <brief-path>
 #   luna.sh wait <lane>...
 set -euo pipefail
 
 LUNA_MODEL=gpt-6-luna
+LUNA_EFFORT=medium
 
 die() { printf 'luna: %s\n' "$*" >&2; exit "${2:-1}"; }
 
@@ -22,6 +23,11 @@ case "$cmd" in
     from=${HERDR_PANE_ID:?}; dir=right
     while [ $# -gt 0 ]; do
       case "$1" in
+        --model) LUNA_MODEL=${2:?model required}; shift 2 ;;
+        --effort)
+          LUNA_EFFORT=${2:?effort required}
+          case "$LUNA_EFFORT" in low|medium|high) ;; *) die "invalid effort: $LUNA_EFFORT" ;; esac
+          shift 2 ;;
         --from) from=$2; shift 2 ;;
         --direction) dir=$2; shift 2 ;;
         *) die "unknown option $1" ;;
@@ -29,10 +35,16 @@ case "$cmd" in
     done
     pane=$(herdr pane split --pane "$from" --direction "$dir" --cwd "$PWD" --no-focus | jq -er '.result.pane.pane_id')
     label "$pane" "$name" "$focus"
-    # Pin the model: the Codex config default is the orchestrator model, not Luna.
-    out=$(herdr agent start "$name" --kind codex --pane "$pane" --timeout 60000 -- -m "$LUNA_MODEL" 2>&1) || true
+    roots=$(jq -cn --arg a "$HOME/.nuget/packages" --arg b "$HOME/.local/share/NuGet" '[$a,$b]')
+    # Keep network and NuGet caches available for restore/builds inside the worker sandbox.
+    out=$(herdr agent start "$name" --kind codex --pane "$pane" --timeout 60000 -- \
+      -m "$LUNA_MODEL" -c sandbox_workspace_write.network_access=true \
+      -c "sandbox_workspace_write.writable_roots=$roots" \
+      -c "model_reasoning_effort=$LUNA_EFFORT" 2>&1) || true
     if jq -e '.error.code == "agent_not_ready"' >/dev/null 2>&1 <<<"$out"; then
-      # Usually Codex's "Trust this folder?" prompt on a repo it has not seen.
+      printf '%s\n' "worker startup screen ($name):" >&2
+      screen=$(herdr agent read "$name" --source recent --lines 15 2>&1) || true
+      printf '%s\n' "$screen" >&2
       printf '%s\t%s\tblocked-startup\n' "$name" "$pane"; exit 3
     fi
     jq -e '.result' >/dev/null 2>&1 <<<"$out" || die "agent start failed: $out"
