@@ -7,6 +7,10 @@ skills are listed here; experimental and retired work stays in its bucket.
 
 ### User-invoked
 
+- [`close-issue`](./skills/engineering/close-issue/SKILL.md) — finish a launched issue and retire its owned workspace
+- [`launch-issue`](./skills/engineering/launch-issue/SKILL.md) — launch a Tengella issue into a
+  Worktrunk checkout and Herdr worker
+
 - [`nightly-builds`](./skills/engineering/nightly-builds/SKILL.md) — check
   Tengella nightly builds and diagnose failures; silent when healthy
 - [`primer`](./skills/engineering/primer/SKILL.md) — create a ready-to-paste

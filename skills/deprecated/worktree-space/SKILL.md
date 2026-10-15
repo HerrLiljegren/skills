@@ -5,6 +5,9 @@ description: Create a Worktrunk-managed worktree and matching herdr space from a
 
 # Worktree Space
 
+Retired: unused personal workflow. Kept for historical reference; do not
+install or invoke. `launch-issue` owns issue-worker launch setup.
+
 Create one Worktrunk-managed Git worktree and one matching herdr space.
 
 The script is the source of truth for repo detection, branch slugging, `wt new`,

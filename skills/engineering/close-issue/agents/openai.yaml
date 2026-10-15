@@ -1,0 +1,6 @@
+interface:
+  display_name: "Close Issue"
+  short_description: "Finish an issue and retire its owned workspace"
+  default_prompt: "Use $close-issue to finish the selected issue and clean up its launch-owned workspace."
+policy:
+  allow_implicit_invocation: false

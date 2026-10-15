@@ -6,6 +6,9 @@ disable-model-invocation: true
 
 # Worktree Closeout
 
+Retired. Use `/close-issue` for launched work. The former direct-merge workflow
+below is retained as history only; do not execute it.
+
 Close one completed issue through the repository's direct-commit workflow. Run
 this skill from a root orchestrator that will survive removal of the target
 worktree and Herdr workspace.

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Launch Issue"
+  short_description: "Launch an Azure DevOps issue from a Tengella repository."
+  default_prompt: "Use $launch-issue to launch the supplied issue."
+
+policy:
+  allow_implicit_invocation: false
