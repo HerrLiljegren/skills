@@ -1,6 +1,7 @@
 ---
 name: x-thread-resource
 description: Parse X and Twitter status URLs through twitter-thread.com's public unroll endpoint, inspect a bounded set of public linked pages, and return source-grounded Markdown or JSON. Use when the user asks to read, unroll, summarize, capture, or bookmark an X or Twitter thread.
+model: haiku
 ---
 
 # X thread resource

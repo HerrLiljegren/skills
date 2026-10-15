@@ -1,6 +1,7 @@
 ---
 name: codex-resets
 description: Fetch and render the user's Codex reset credits from the ChatGPT rate-limit reset credits endpoint using ~/.codex/auth.json. Use when the user asks about Codex reset credits, reset credit expiry, available resets, redeemed reset status, or wants a safe Markdown table of Codex reset credits without exposing auth tokens or raw API data.
+model: haiku
 ---
 
 # Codex Resets

@@ -1,6 +1,7 @@
 ---
 name: vim-helper
 description: Gives terse, pragmatic Vim, Neovim, and Zed Vim-mode answers and stores reusable answers in the user's Obsidian vault. Use when the user asks for Vim motions, text objects, commands, mappings, Neovim setup, Zed Vim-mode behavior, editor alignment, or quick Vim tips.
+model: haiku
 ---
 
 # Vim Helper

@@ -1,6 +1,7 @@
 ---
 name: where-were-we
 description: Reconstruct current work context and produce a concise "Where were we, where are we, where are we going" brief. Use when the user asks to catch up, resume, reorient, remember the current state, summarize active work, inspect what happened in a branch, check touched issues, review pane history, or asks "where were we?".
+model: sonnet
 ---
 
 # Where Were We
