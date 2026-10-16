@@ -1,0 +1,3 @@
+# Keep checkouts byte-identical across hosts; the agent-mailbox sync check
+# compares deployed bridge files by hash.
+* text=auto eol=lf

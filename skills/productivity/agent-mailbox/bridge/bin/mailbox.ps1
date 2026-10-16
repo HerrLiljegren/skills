@@ -138,6 +138,8 @@ switch ($Command) {
             throw 'send requires -Slug, -Subject, and -BodyFile'
         }
         if ($Slug -cnotmatch '^[a-z0-9]+(-[a-z0-9]+)*$') { throw "Slug must be lowercase kebab-case: $Slug" }
+        # The sender is already part of the file name.
+        if ($Slug -match '^(linux|windows)-') { throw "Slug must not start with a side name: $Slug" }
 
         $body = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $BodyFile).Path, $Utf8).Trim()
         foreach ($section in $RequiredSections) {
