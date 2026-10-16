@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Mailbox"
+  short_description: "Exchange messages and files with the Windows VM agent."
+  default_prompt: "Use $agent-mailbox to check my mailbox from the Windows agent."

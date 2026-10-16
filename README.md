@@ -25,6 +25,8 @@ skills are listed here; experimental and retired work stays in its bucket.
 
 ### Model-invoked
 
+- [`agent-mailbox`](./skills/productivity/agent-mailbox/SKILL.md) — exchange
+  messages and files with the Windows VM agent
 - [`codex-resets`](./skills/productivity/codex-resets/SKILL.md) — safely show
   available Codex reset credits
 - [`vim-helper`](./skills/productivity/vim-helper/SKILL.md) — answer Vim,

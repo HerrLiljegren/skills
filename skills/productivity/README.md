@@ -9,6 +9,8 @@ Daily non-code workflows and personal utilities.
 
 ## Model-invoked
 
+- [`agent-mailbox`](./agent-mailbox/SKILL.md) — exchange messages and files
+  with the Windows VM agent
 - [`codex-resets`](./codex-resets/SKILL.md) — safely show available Codex reset
   credits
 - [`vim-helper`](./vim-helper/SKILL.md) — answer Vim, Neovim, and Zed Vim-mode
