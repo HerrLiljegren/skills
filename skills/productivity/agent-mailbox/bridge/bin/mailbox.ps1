@@ -36,6 +36,9 @@ param(
     [string]$BodyFile,
     # send: message being answered.
     [string]$ReplyTo = 'none',
+    # send: kebab-case name of the work stream; replies inherit it.
+    # status: show only this thread's messages.
+    [string]$Thread,
     # send: earlier messages this one replaces; unclaimed ones are withdrawn.
     [string[]]$Supersedes = @(),
     # send: files copied to artifacts/<message-stem>/ with SHA-256 recorded.
@@ -93,9 +96,20 @@ function Get-Subject([string]$Path) {
     return ($first -replace '^#\s*', '')
 }
 
+# Header lines sit between the title and the first section heading.
+function Get-Header([string]$Path, [string]$Key) {
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
+        if ($line -match '^## ') { break }
+        if ($line -match ('^' + [regex]::Escape($Key) + ':\s*(.*?)\s*$')) { return $Matches[1] }
+    }
+    return ''
+}
+
 function Get-Messages([string]$Queue) {
     if (-not (Test-Path -LiteralPath $Queue)) { return @() }
-    return @(Get-ChildItem -LiteralPath $Queue -File -Filter '*.md' | Sort-Object Name)
+    $messages = @(Get-ChildItem -LiteralPath $Queue -File -Filter '*.md' | Sort-Object Name)
+    if ($Thread) { $messages = @($messages | Where-Object { (Get-Header $_.FullName 'Thread') -eq $Thread }) }
+    return $messages
 }
 
 function Show-Queue([string]$Label, [string]$Queue) {
@@ -104,7 +118,9 @@ function Show-Queue([string]$Label, [string]$Queue) {
     foreach ($m in $messages) {
         $created = Get-MessageTime $m.Name
         $age = if ($created) { '{0}d' -f [int]([DateTime]::UtcNow - $created).TotalDays } else { '?' }
-        Write-Output ("  {0}  [{1}]  {2}" -f $m.Name, $age, (Get-Subject $m.FullName))
+        $threadName = Get-Header $m.FullName 'Thread'
+        if (-not $threadName) { $threadName = '-' }
+        Write-Output ("  {0}  [{1}]  ({2})  {3}" -f $m.Name, $age, $threadName, (Get-Subject $m.FullName))
     }
     $loose = @(Get-ChildItem -LiteralPath $Queue -File | Where-Object { $_.Extension -ne '.md' })
     foreach ($f in $loose) { Write-Output ("  legacy attachment: {0}" -f $f.Name) }
@@ -127,7 +143,8 @@ function Format-Size([long]$Bytes) {
 
 switch ($Command) {
     'status' {
-        Write-Output "Mailbox: $Root (side: $Me)"
+        $scope = if ($Thread) { ", thread: $Thread" } else { '' }
+        Write-Output "Mailbox: $Root (side: $Me$scope)"
         Show-Queue "Inbox to-$Me, oldest first" $Inbox
         Show-Queue "Sent to-$Peer, unclaimed" $Outbox
         Show-Queue 'Claimed in working/' $Working
@@ -156,6 +173,16 @@ switch ($Command) {
         foreach ($old in $Supersedes) {
             if ($old -notmatch "^\d{8}T\d{6}Z-$Me-") { throw "Only your own messages can be superseded: $old" }
         }
+        if ($ReplyTo -ne 'none') {
+            $parentThread = Get-Header (Find-Message $ReplyTo) 'Thread'
+            if (-not $Thread) { $Thread = $parentThread }
+            elseif ($parentThread -and $parentThread -ne $Thread) {
+                throw "$ReplyTo belongs to thread '$parentThread', not '$Thread'"
+            }
+        }
+        if ($Thread -and $Thread -cnotmatch '^[a-z0-9]+(-[a-z0-9]+)*$') {
+            throw "Thread must be lowercase kebab-case: $Thread"
+        }
 
         $now = [DateTime]::UtcNow
         $stem = '{0}-{1}-{2}' -f $now.ToString("yyyyMMdd'T'HHmmss'Z'"), $Me, $Slug
@@ -167,6 +194,7 @@ switch ($Command) {
         $lines.Add("From: $Me")
         $lines.Add("To: $Peer")
         $lines.Add('Created: ' + $now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"))
+        if ($Thread) { $lines.Add("Thread: $Thread") }
         $lines.Add("Reply-To: $ReplyTo")
         if ($Supersedes.Count -gt 0) { $lines.Add('Supersedes: ' + ($Supersedes -join ', ')) }
         $lines.Add('')
