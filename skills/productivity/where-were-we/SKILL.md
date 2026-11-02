@@ -1,75 +1,103 @@
 ---
 name: where-were-we
-description: Reconstruct current work context and produce a concise "Where were we, where are we, where are we going" brief. Use when the user asks to catch up, resume, reorient, remember the current state, summarize active work, inspect what happened in a branch, check touched issues, review pane history, or asks "where were we?".
+description:
+  Recover work context when resuming a thread, inspecting a branch or workspace, or summarizing
+  activity across projects for a standup or time window. Produce a concise, evidence-backed
+  past/present/next brief.
 model: sonnet
 ---
 
 # Where Were We
 
-Produce an evidence-backed catch-up brief before doing more work.
+Recover enough context to explain the last intent, current state, and next decision. Stay read-only
+unless the user also asks to continue work.
 
 ## Workflow
 
-1. Identify the workspace.
-   - Run `pwd`, `git rev-parse --show-toplevel`, `git branch --show-current`, and `git status --short --branch` when inside a Git repo.
-   - If inside a linked worktree, resolve the parent repo with `git rev-parse --git-common-dir`.
-   - If inside herdr (`HERDR_ENV=1`), run `herdr workspace list` and `herdr pane list`; identify the focused pane and sibling panes in the same workspace.
-   - Completion criterion: know the cwd, repo root, branch, worktree/parent relationship, focused herdr workspace, and whether the tree is dirty.
+1. Anchor the request.
+   - Infer the subject, purpose, and time window from the request and current conversation: resume
+     one task, inspect a workspace, or summarize activity across projects. Resolve relative dates
+     using the user's timezone.
+   - Prefer explicitly named threads, repositories, issues, and dates. Use the current directory
+     only as a fallback; a scratch directory may be incidental.
+   - Ask only when competing anchors would materially change the answer and available context cannot
+     resolve them.
+   - Done: scope and intended output are clear, with material assumptions stated.
 
-2. Read recent pane history.
-   - If in herdr, read the focused pane recent history with `herdr pane read <pane> --source recent --lines 120`.
-   - Read sibling panes in the same workspace when they look relevant: agents, running servers, tests, logs, or shells in the same repo/worktree.
-   - If not in herdr, inspect tmux only when available and relevant: `tmux list-sessions`, then panes/windows whose session path matches the repo.
-   - Completion criterion: have the last visible user intent, agent actions, running commands, and any blocked/done agent states relevant to this workspace.
+2. Recover intent and actions.
+   - Start with the current conversation and referenced handoffs or threads. In T3, use available
+     thread search/read tools for the scoped subject and dates. Otherwise use the relevant terminal
+     context below.
+   - In Herdr, run the `herdr` skill to identify the current workspace and pane before reading
+     recent history. Read sibling panes only when tied to the subject. Inspect tmux only when
+     available and relevant.
+   - If those sources are insufficient, search provider session records by project, thread, or date;
+     read only the relevant turn window. Keep raw session history and authentication state private;
+     report task-relevant findings only.
+   - Expand a search only to resolve a named gap. A non-Git workspace can still have sufficient
+     conversation evidence.
+   - Done: recover the latest relevant intent, actions, and unresolved decisions, or identify
+     exactly which evidence is unavailable.
 
-3. Recover Git story.
-   - Run `git status --short`, `git diff --stat`, `git diff --name-status`, and `git log --oneline --decorate --max-count=12`.
-   - If the branch tracks an upstream, compare with upstream: `git status --short --branch`, `git log --oneline --left-right --cherry-pick @{upstream}...HEAD`, and `git diff --stat @{upstream}...HEAD`.
-   - If no upstream exists, compare against the likely base branch only after discovering it from repo conventions, recent branches, or Worktrunk metadata; avoid guessing silently.
-   - Completion criterion: know uncommitted changes, recent commits, ahead/behind state when available, and the likely base or explicitly say it is unknown.
+3. Inspect the scoped repositories when current Git state matters.
+   - Identify root, branch, and worktree relationship with `git rev-parse --show-toplevel`,
+     `git branch --show-current`, and `git rev-parse --git-common-dir`. Use
+     `git status --short --branch` once for dirty state, untracked paths, and available upstream
+     synchronization information.
+   - Inspect both unstaged and staged changes: `git diff --stat`, `git diff --cached --stat`; use
+     their `--name-status` variants or focused diffs when needed to explain the work.
+   - Separate tracking-upstream synchronization from task scope. Discover the task base from the PR
+     target, repository conventions, or Worktrunk metadata even when an upstream exists. Inspect
+     `git log --oneline <base>..HEAD` and `git diff --stat <base>...HEAD` for task work. State when
+     the base is unknown.
+   - Treat local remote-tracking refs as the last known remote state. Use read-only hosting tools
+     when current PR or CI status matters.
+   - For activity summaries, bound history by the requested dates and projects; deduplicate
+     commits/work items across branches and threads. Distinguish the user's work from other
+     contributors' activity.
+   - Done: explain relevant changes and synchronization separately, including staged/untracked work
+     and any unknown base. Skip Git when it adds no evidence needed for the requested brief.
 
-4. Find issue/work-item context.
-   - Extract issue numbers from branch name, herdr label, pane history, recent commits, changed docs, and filenames.
-   - Check repo-local issue sources first: `docs/issues/manifest.json`, `docs/issues/*`, `docs/agents/*`, `.agents/*`, PRD/prompt files, and issue comments/handoff files mentioned in recent history.
-   - If Azure DevOps, GitHub, or another tracker tool is configured and needed, inspect the referenced issues read-only.
-   - Completion criterion: list every plausible touched issue with title/status when available, or state that no issue source was found.
+4. Resolve work-item and verification context.
+   - Follow issue IDs and handoff paths tied to the scoped task. Read repository sources first; use
+     configured tracker tools when current title/status or requirements matter. Recent unrelated
+     commits are not evidence of task scope.
+   - For consequential claims distinguish **observed now**, **reported earlier**, and
+     **unresolved**; label inference explicitly. Link concise evidence where useful rather than
+     reproducing command output.
+   - A historical test result applies to its recorded revision and environment. Check whether
+     relevant code/configuration changed before describing it as current verification; if that
+     cannot be established, retain the historical label. Distinguish local checks, CI, deployment,
+     and human acceptance.
+   - Name the cheapest check that would resolve a material uncertainty. Run validation only when
+     requested; reuse applicable passing evidence.
+   - Done: each material status claim has a source and freshness boundary, and remaining uncertainty
+     has a concrete next check.
 
-5. Inspect project signals.
-   - Check changed tests, failed logs, TODO/handoff notes, and recent verification commands from pane history.
-   - If a package/app has obvious verification commands, report them as candidate next checks; do not run expensive tests unless the user asked to validate.
-   - Completion criterion: know what has been verified, what is unverified, and what command would most directly reduce uncertainty.
+5. Write the brief.
+   - Lead with what is done, what remains, or the decision the user needs to make.
+   - Use the shape below for resuming work. Honor requested language and format; standups usually
+     need a few outcome bullets, not a workspace inventory.
+   - Omit empty or irrelevant fields. Include a stop/ask point only for an actual decision or
+     authorization boundary; retain authorization already given.
+   - Stop collecting evidence once intent, relevant state, and next decision are supported. State
+     missing coverage rather than implying an exhaustive survey.
+   - Done: the user can resume or report the work without reconstructing the investigation.
 
-6. Write the brief.
-   - Keep it compact and operational.
-   - Separate facts from inference.
-   - Do not hide uncertainty; name missing evidence and the cheapest way to resolve it.
+## Default brief
 
-## Output Shape
-
-Use this shape unless the user requests a different format:
-
-```md
 **Where We Were**
-- Last intent:
+
+- Last intent and relevant issue:
 - Recent actions:
-- Relevant issue/work item:
 
 **Where We Are**
-- Repo/branch:
-- Worktree/herdr:
-- Git state:
-- Verification:
-- Open risks:
+
+- Current outcome and remaining work:
+- Repo/branch/workspace when relevant:
+- Verification and material uncertainty:
 
 **Where We Are Going**
+
 - Next best step:
-- Then:
-- Stop/ask point:
-```
-
-## Guardrails
-
-- Stay read-only unless the user explicitly asks to continue implementation.
-- Do not summarize from memory alone when local evidence is cheap to inspect.
-- Prefer exact file paths, branch names, issue IDs, commit SHAs, and command outputs over vague recap.
-- If the workspace is not a Git repo and no herdr/tmux context is available, say so and ask what context to anchor on.
+- Decision or stop point, if any:
