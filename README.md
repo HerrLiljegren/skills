@@ -32,6 +32,8 @@ skills are listed here; experimental and retired work stays in its bucket.
 
 - [`agent-mailbox`](./skills/productivity/agent-mailbox/SKILL.md) — exchange
   messages and files with the Windows VM agent
+- [`agent-usage`](./skills/productivity/agent-usage/SKILL.md) — record and
+  compare token usage of Claude Code and Codex runs
 - [`codex-resets`](./skills/productivity/codex-resets/SKILL.md) — safely show
   available Codex reset credits
 - [`vim-helper`](./skills/productivity/vim-helper/SKILL.md) — answer Vim,

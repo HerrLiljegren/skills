@@ -11,6 +11,8 @@ Daily non-code workflows and personal utilities.
 
 - [`agent-mailbox`](./agent-mailbox/SKILL.md) — exchange messages and files
   with the Windows VM agent
+- [`agent-usage`](./agent-usage/SKILL.md) — record and compare token usage of
+  Claude Code and Codex runs
 - [`codex-resets`](./codex-resets/SKILL.md) — safely show available Codex reset
   credits
 - [`vim-helper`](./vim-helper/SKILL.md) — answer Vim, Neovim, and Zed Vim-mode

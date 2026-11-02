@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Usage"
+  short_description: "Record and compare token usage of agent runs."
+  default_prompt: "Use $agent-usage to record this run's token usage and compare it with earlier runs."
