@@ -12,3 +12,8 @@ Daily code and technical work.
   and diagnose failures; silent when healthy
 - [`primer`](./primer/SKILL.md) — create a ready-to-paste prompt for continuing
   current technical work in a fresh agent session
+
+## Model-invoked
+
+- [`prune-branches`](./prune-branches/SKILL.md) — delete merged PR branches and
+  their worktrees, locally and on the remote

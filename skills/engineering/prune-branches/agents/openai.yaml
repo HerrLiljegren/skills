@@ -1,0 +1,3 @@
+interface:
+  display_name: "Prune branches"
+  short_description: "Delete merged PR branches locally and on the remote"

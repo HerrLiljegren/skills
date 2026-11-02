@@ -16,6 +16,11 @@ skills are listed here; experimental and retired work stays in its bucket.
 - [`primer`](./skills/engineering/primer/SKILL.md) — create a ready-to-paste
   prompt for continuing current technical work in a fresh agent session
 
+### Model-invoked
+
+- [`prune-branches`](./skills/engineering/prune-branches/SKILL.md) — delete
+  merged PR branches and their worktrees, locally and on the remote
+
 ## Productivity
 
 ### User-invoked
