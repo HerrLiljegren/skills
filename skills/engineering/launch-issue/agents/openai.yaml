@@ -1,7 +1,7 @@
 interface:
   display_name: "Launch Issue"
-  short_description: "Launch an Azure DevOps issue from a Tengella repository."
-  default_prompt: "Use $launch-issue to launch the supplied issue."
+  short_description: "Launch selected Tengella issues into Herdr workers."
+  default_prompt: "Use $launch-issue for the selected issue IDs and optional direction."
 
 policy:
   allow_implicit_invocation: false

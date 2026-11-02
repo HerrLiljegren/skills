@@ -1,0 +1,33 @@
+name: launch-issue
+
+on:
+  push:
+    paths:
+      - 'skills/engineering/launch-issue/**'
+      - '.github/workflows/launch-issue.yml'
+  pull_request:
+    paths:
+      - 'skills/engineering/launch-issue/**'
+      - '.github/workflows/launch-issue.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skills/engineering/launch-issue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check shell and JavaScript syntax
+        run: |
+          bash -n scripts/preflight.sh scripts/launch-worktree.sh
+          node --check tests/launch-issue.mjs
+      - name: Verify isolated launch and recovery behavior
+        run: node tests/launch-issue.mjs

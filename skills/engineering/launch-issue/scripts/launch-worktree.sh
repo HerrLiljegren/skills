@@ -40,6 +40,8 @@ repository_name="$(jq -er '.repository.name | select(type == "string" and length
   || die 'handoff has no repository name'
 repository_remote="$(jq -er '.repository.remote | select(type == "string" and length > 0)' "$handoff")" \
   || die 'handoff has no repository remote'
+issue_url="$(jq -er '.url | select(type == "string" and startswith("https://dev.azure.com/"))' "$handoff")" \
+  || die 'handoff has no Azure DevOps issue URL'
 expected_repo="$(jq -er '.repository.root | select(type == "string" and length > 0)' "$handoff")" \
   || die 'handoff has no repository root'
 base_revision_input="$(jq -er '.repository.baseCommit | select(type == "string" and length > 0)' "$handoff")" \
@@ -68,6 +70,9 @@ prompt_mode='setup-only'
 parent_repo="$(git rev-parse --show-toplevel)"
 [[ "$(realpath "$parent_repo")" == "$(realpath "$expected_repo")" ]] \
   || die 'handoff repository does not match the current checkout'
+# Herdr identifies the repository by its primary checkout, even when invoked
+# from a linked checkout. Keep the invoking checkout for the pinned base/receipt.
+herdr_repo_root="$(git -C "$parent_repo" worktree list --porcelain | awk '/^worktree / && !found { print substr($0, 10); found = 1 }')"
 actual_remote="$(git -C "$parent_repo" remote get-url origin)" \
   || die 'current checkout has no origin remote'
 [[ "$actual_remote" == "$repository_remote" ]] \
@@ -78,6 +83,8 @@ https_user_remote="https://${organization}@dev.azure.com/${organization}/${proje
 [[ "$repository_remote" == "$ssh_remote" || "$repository_remote" == "$https_remote" \
   || "$repository_remote" == "$https_user_remote" ]] \
   || die 'handoff project and repository do not match its Azure DevOps remote'
+expected_issue_url="https://dev.azure.com/${organization}/${project}/_workitems/edit/${issue}"
+[[ "$issue_url" == "$expected_issue_url" ]] || die 'handoff issue URL does not match its project and ID'
 root_branch="$(git -C "$parent_repo" symbolic-ref --quiet --short HEAD)" \
   || die 'root checkout is detached'
 root_head="$(git -C "$parent_repo" rev-parse HEAD)"
@@ -163,6 +170,7 @@ write_state() {
   jq -n \
     --arg issue "$issue" --arg issue_type "$issue_type" --arg issue_state "$issue_state" \
     --arg title "$title" --arg branch "$branch" --arg checkpoint "$checkpoint" \
+    --arg issue_url "$issue_url" \
     --arg handoff "$handoff" --arg handoff_hash "$handoff_hash" \
     --arg organization "$organization" --arg project "$project" \
     --arg repository_name "$repository_name" --arg repository_remote "$repository_remote" \
@@ -180,7 +188,7 @@ write_state() {
     --argjson agent_resumed "$agent_resumed" \
     --argjson prompt_resumed "$prompt_resumed" \
     '{ok: true, checkpoint: $checkpoint, issue: $issue, issue_type: $issue_type,
-      issue_state: $issue_state, title: $title, branch: $branch,
+      issue_state: $issue_state, title: $title, branch: $branch, issue_url: $issue_url,
       organization: $organization, project: $project,
       repository_name: $repository_name, repository_remote: $repository_remote,
       agent_mode: $agent_mode,
@@ -221,30 +229,41 @@ if [[ -f "$state_path" ]]; then
     checkpoint="$recorded_checkpoint"
     fail 'prompt submission is pending; refusing an ambiguous resend'
   fi
+  if [[ "$recorded_checkpoint" == prompted ]]; then
+    [[ "$(jq -r '.prompt_submission' "$state_path")" == accepted ]] \
+      || fail 'prompted receipt has no accepted submission'
+  fi
 fi
 if (( recorded_rank == 0 )); then write_state; fi
 
-worktree_path="$(git -C "$parent_repo" worktree list --porcelain | awk -v branch="refs/heads/$branch" '
-  /^worktree / { path = substr($0, 10) }
-  /^branch / && substr($0, 8) == branch { print path; found = 1; exit }
-  END { if (found) exit 0; exit 1 }')" || true
+# Consume the whole listing: exiting awk at the match lets git hit SIGPIPE
+# while writing later worktrees, and pipefail turns that into a lookup failure.
+branch_worktree() {
+  git -C "$parent_repo" worktree list --porcelain | awk -v branch="refs/heads/$branch" '
+    /^worktree / { path = substr($0, 10) }
+    /^branch / && substr($0, 8) == branch && !found { print path; found = 1 }
+    END { exit !found }'
+}
+
+worktree_path="$(branch_worktree)" || true
 
 if git -C "$parent_repo" show-ref --verify --quiet "refs/heads/$branch"; then
   [[ -n "$worktree_path" ]] || fail "branch exists without its expected worktree: $branch"
-  [[ "$(git -C "$worktree_path" rev-parse HEAD)" == "$base_revision" ]] \
-    || fail "worktree HEAD does not match base revision: $worktree_path"
-  [[ -z "$(git -C "$worktree_path" status --porcelain)" ]] \
-    || fail "worktree is not clean: $worktree_path"
+  # After acceptance, commits and dirty files belong to the running delivery.
+  # Before acceptance, drift would change the pinned starting scope.
+  if [[ "$recorded_checkpoint" != prompted ]]; then
+    [[ "$(git -C "$worktree_path" rev-parse HEAD)" == "$base_revision" ]] \
+      || fail "worktree HEAD does not match base revision: $worktree_path"
+    [[ -z "$(git -C "$worktree_path" status --porcelain)" ]] \
+      || fail "worktree is not clean: $worktree_path"
+  fi
   worktree_resumed=true
 else
   (( recorded_rank < 2 )) || fail 'recorded Worktrunk checkout is missing'
   [[ -z "$worktree_path" ]] || fail "worktree exists without its expected branch: $worktree_path"
   (cd "$parent_repo" && wt switch --create --base "$base_revision" --no-cd "$branch") >/dev/null \
     || fail "Worktrunk could not create branch: $branch"
-  worktree_path="$(git -C "$parent_repo" worktree list --porcelain | awk -v branch="refs/heads/$branch" '
-    /^worktree / { path = substr($0, 10) }
-    /^branch / && substr($0, 8) == branch { print path; found = 1; exit }
-    END { if (found) exit 0; exit 1 }')" || fail 'created branch has no resolvable checkout'
+  worktree_path="$(branch_worktree)" || fail 'created branch has no resolvable checkout'
 fi
 checkpoint=worktree-created
 if (( recorded_rank >= 2 )); then
@@ -260,7 +279,7 @@ workspace_count="$(jq -er --arg path "$worktree_path" \
   || fail 'Herdr workspace listing has an unexpected schema'
 
 if [[ "$workspace_count" == 1 ]]; then
-  workspace_match="$(jq -cer --arg path "$worktree_path" --arg repo "$parent_repo" --arg label "$label" \
+  workspace_match="$(jq -cer --arg path "$worktree_path" --arg repo "$herdr_repo_root" --arg label "$label" \
     '.result.workspaces[]
      | select(.worktree.checkout_path == $path)
      | select(.worktree.is_linked_worktree == true)
@@ -279,9 +298,9 @@ if [[ "$workspace_count" == 1 ]]; then
   workspace_resumed=true
 elif [[ "$workspace_count" == 0 ]]; then
   (( recorded_rank < 3 )) || fail 'recorded Herdr workspace is missing'
-  # The calling Herdr workspace may belong to a different repository.
+  # Herdr opens linked worktrees from the primary checkout, not a linked source.
   herdr_json="$(herdr worktree open \
-    --cwd "$parent_repo" \
+    --cwd "$herdr_repo_root" \
     --path "$worktree_path" \
     --label "$label" \
     --no-focus)" || fail 'Herdr worktree open failed'
@@ -291,7 +310,7 @@ elif [[ "$workspace_count" == 0 ]]; then
     || fail 'Herdr response is missing the tab ID'
   herdr_pane_id="$(jq -er '.result.root_pane.pane_id' <<<"$herdr_json")" \
     || fail 'Herdr response is missing the root-pane ID'
-  jq -e --arg path "$worktree_path" --arg repo "$parent_repo" \
+  jq -e --arg path "$worktree_path" --arg repo "$herdr_repo_root" \
     '.result.workspace.worktree.checkout_path == $path
      and .result.workspace.worktree.is_linked_worktree == true
      and .result.workspace.worktree.repo_root == $repo' <<<"$herdr_json" >/dev/null \
@@ -367,6 +386,12 @@ if (( recorded_rank < 4 )); then write_state; fi
 if [[ "$recorded_checkpoint" == prompted ]]; then
   prompt_submission=accepted
   prompt_resumed=true
+  # Report fresh live identity without rewriting the historical launch receipt.
+  jq --arg status "$agent_status" --arg url "$issue_url" \
+    '. + {result: "already-launched", issue_url: $url, agent_status: $status,
+      worktree_resumed: true, workspace_resumed: true, agent_resumed: true,
+      prompt_resumed: true}' "$state_path"
+  exit 0
 else
   if [[ "$prompt_mode" == implement ]]; then
     # $tengella-deliver owns readiness, verification, PR, review, CI, and the
@@ -376,7 +401,7 @@ else
   else
     mode_instruction='Perform setup only, summarize your understanding, and wait for direction.'
   fi
-  setup_prompt="Read the immutable issue handoff at $handoff. Read every applicable AGENTS.md before acting. Treat the handoff as the authoritative implementation scope; use fresh tracker reads only for lifecycle updates and explicitly requested related evidence. $mode_instruction"
+  setup_prompt="Issue [#$issue]($issue_url). Full issue URL: $issue_url. Read the immutable issue handoff at $handoff. Read every applicable AGENTS.md before acting. The handoff records the original authorized scope and launch identity. Refresh requirements, dependencies, PRs and CI under the delivery workflow. Reconcile conflicting scope before implementation; explicit human-approved amendments may supersede affected fields. Record the amendment revision and decision in delivery evidence and preserve the original handoff. $mode_instruction"
   [[ -z "$start_prompt" ]] || setup_prompt+=" Additional direction: $start_prompt"
   prompt_submission=pending
   write_state
@@ -391,4 +416,4 @@ else
 fi
 checkpoint=prompted
 write_state
-cat "$state_path"
+jq '. + {result: "launched"}' "$state_path"

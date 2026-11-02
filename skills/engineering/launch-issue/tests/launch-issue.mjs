@@ -8,7 +8,8 @@ const root = path.resolve(import.meta.dirname, "..");
 const script = path.join(root, "scripts", "launch-worktree.sh");
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "launch-issue-"));
 process.once("exit", () => fs.rmSync(temporary, { recursive: true, force: true }));
-const repository = path.join(temporary, "repository");
+const primaryRepository = path.join(temporary, "repository");
+let repository = primaryRepository;
 const bin = path.join(temporary, "bin");
 const handoff = path.join(temporary, "launch-handoff.json");
 const state = path.join(temporary, "launch-state.json");
@@ -46,6 +47,10 @@ fs.writeFileSync(path.join(repository, "README.md"), "fixture\n");
 run("git", ["-C", repository, "add", "README.md"]);
 run("git", ["-C", repository, "commit", "-qm", "test: initialize fixture"]);
 const baseRevision = run("git", ["-C", repository, "rev-parse", "HEAD"]).trim();
+if (process.env.LAUNCH_TEST_LINKED === "1") {
+  repository = path.join(temporary, "linked-checkout");
+  run("git", ["-C", primaryRepository, "worktree", "add", "-qb", "linked-base", repository]);
+}
 const handoffDocument = {
   id: 5423,
   url: "https://dev.azure.com/tengella/kundportalen/_workitems/edit/5423",
@@ -81,6 +86,12 @@ printf '%s\n' "$branch" >>"$LAUNCH_TEST_WT_LOG"
 git worktree add -q -b "$branch" "$checkout" "$base"
 `);
 executable("herdr", String.raw`
+if [[ "$1 $2" == "worktree list" ]]; then
+  [[ "$3" == --cwd && "$4" == "$LAUNCH_TEST_REPOSITORY" ]]
+  jq -n --arg root "$LAUNCH_TEST_PRIMARY" --arg checkout "$LAUNCH_TEST_REPOSITORY" --arg key "$LAUNCH_TEST_REPO_KEY" \
+    '{result:{source:{repo_root:$root,repo_key:$key},worktrees:(if env.LAUNCH_TEST_MISSING_CHECKOUT == "1" then [] else [{path:$checkout}] end)}}'
+  exit
+fi
 if [[ "$1 $2" == "worktree open" ]]; then
   has_workspace=0
   has_cwd=0
@@ -97,11 +108,11 @@ if [[ "$1 $2" == "worktree open" ]]; then
     echo 'worktree_not_found: caller workspace belongs to another repository' >&2
     exit 1
   fi
-  [[ "$3" == --cwd && "$4" == "$LAUNCH_TEST_REPOSITORY" ]]
+  [[ "$3" == --cwd && "$4" == "$LAUNCH_TEST_PRIMARY" ]]
   [[ "$5" == --path && "$6" == "$LAUNCH_TEST_CHECKOUT" ]]
   printf 'open\n' >>"$LAUNCH_TEST_HERDR_OPEN_LOG"
   touch "$LAUNCH_TEST_HERDR_STATE"
-  jq -n --arg path "$LAUNCH_TEST_CHECKOUT" --arg repo "$LAUNCH_TEST_REPOSITORY" \
+  jq -n --arg path "$LAUNCH_TEST_CHECKOUT" --arg repo "$LAUNCH_TEST_PRIMARY" \
     '{id:"cli:worktree:open",result:{already_open:false,root_pane:{pane_id:"w2:p1",tab_id:"w2:t1",workspace_id:"w2"},tab:{tab_id:"w2:t1",workspace_id:"w2"},type:"worktree_opened",workspace:{active_tab_id:"w2:t1",workspace_id:"w2",worktree:{checkout_path:$path,is_linked_worktree:true,repo_root:$repo}}}}'
   exit
 fi
@@ -114,7 +125,7 @@ if [[ "$1 $2" == "workspace list" ]]; then
   [[ "$(cat "$LAUNCH_TEST_HERDR_STATE")" == conflict ]] && label='wrong launch'
   workspace=w2
   [[ "$(cat "$LAUNCH_TEST_HERDR_STATE")" == replaced ]] && workspace=w9
-  jq -n --arg path "$LAUNCH_TEST_CHECKOUT" --arg repo "$LAUNCH_TEST_REPOSITORY" --arg label "$label" --arg workspace "$workspace" \
+  jq -n --arg path "$LAUNCH_TEST_CHECKOUT" --arg repo "$LAUNCH_TEST_PRIMARY" --arg label "$label" --arg workspace "$workspace" \
     '{id:"cli:workspace:list",result:{type:"workspace_list",workspaces:[{workspace_id:$workspace,active_tab_id:($workspace+":t1"),label:$label,tab_count:1,pane_count:1,worktree:{checkout_path:$path,is_linked_worktree:true,repo_root:$repo}}]}}'
   exit
 fi
@@ -172,8 +183,22 @@ fi
 echo "unexpected herdr invocation: $*" >&2
 exit 64
 `);
+executable("tengella", "exit 0\n");
 executable("codex", "exit 0\n");
 executable("pi", "exit 0\n");
+// Large repositories keep writing worktrees after the launch entry. Delay a
+// trailing entry so a reader that stops at its match deterministically gets
+// SIGPIPE under pipefail.
+const realGit = run("bash", ["-c", "command -v git"]).trim();
+executable("git", String.raw`
+if [[ " $* " == *" worktree list --porcelain "* ]]; then
+  ${JSON.stringify(realGit)} "$@"
+  sleep 0.2
+  printf 'worktree /launch-test/trailing\nHEAD %040d\ndetached\n\n' 0
+  exit
+fi
+exec ${JSON.stringify(realGit)} "$@"
+`);
 
 const environment = {
   ...process.env,
@@ -181,6 +206,8 @@ const environment = {
   HERDR_ENV: "1",
   HERDR_WORKSPACE_ID: "other-repository-workspace",
   LAUNCH_TEST_REPOSITORY: repository,
+  LAUNCH_TEST_PRIMARY: primaryRepository,
+  LAUNCH_TEST_REPO_KEY: path.join(primaryRepository, ".git"),
   LAUNCH_TEST_CHECKOUT: path.join(repository, ".worktrees", "issue-5423-isolate-cookies"),
   LAUNCH_TEST_HERDR_STATE: herdrState,
   LAUNCH_TEST_WT_LOG: wtLog,
@@ -207,6 +234,30 @@ function launch(startPrompt) {
     env: environment,
   });
 }
+
+// Local preflight is read-only and reports independent gaps together.
+const preflight = path.join(root, "scripts", "preflight.sh");
+const preflightArgs = [repository, "tengella", "kundportalen", "web-app", "codex"];
+const ready = spawnSync(preflight, preflightArgs, { encoding: "utf8", env: environment });
+assert.equal(ready.status, 0, ready.stderr);
+assert.equal(JSON.parse(ready.stdout).base_commit, baseRevision);
+const wrongRepository = spawnSync(preflight, preflightArgs, {
+  encoding: "utf8", env: { ...environment, LAUNCH_TEST_REPO_KEY: "/different/repository/.git" },
+});
+assert.equal(wrongRepository.status, 1);
+assert.match(JSON.parse(wrongRepository.stdout).errors.join(" "), /repository resolution/);
+const missingCheckout = spawnSync(preflight, preflightArgs, {
+  encoding: "utf8", env: { ...environment, LAUNCH_TEST_MISSING_CHECKOUT: "1" },
+});
+assert.equal(missingCheckout.status, 1);
+const blocked = spawnSync(preflight, [repository, "wrong-org", "kundportalen", "web-app", "codex"], {
+  encoding: "utf8", env: { ...environment, HERDR_ENV: "0", HERDR_WORKSPACE_ID: "" },
+});
+assert.equal(blocked.status, 1);
+assert.equal(JSON.parse(blocked.stdout).errors.length, 4);
+assert.equal(fs.existsSync(state), false);
+assert.equal(fs.existsSync(wtLog), false);
+assert.equal(fs.existsSync(herdrPromptLog), false);
 
 const invalidModeHandoff = path.join(temporary, "invalid-mode-handoff.json");
 const invalidMode = JSON.parse(fs.readFileSync(handoff, "utf8"));
@@ -251,6 +302,8 @@ assert.equal(output.repository_name, "web-app");
 assert.equal(output.repository_remote, repositoryRemote);
 assert.equal(output.agent_mode, "HITL");
 assert.equal(output.checkpoint, "prompted");
+assert.equal(output.result, "launched");
+assert.equal(output.issue_url, handoffDocument.url);
 assert.equal(output.base_revision, output.root_head);
 assert.equal(output.worktree_resumed, false);
 assert.equal(output.workspace_resumed, false);
@@ -371,11 +424,30 @@ fs.writeFileSync(state, promptedState);
 fs.writeFileSync(path.join(environment.LAUNCH_TEST_CHECKOUT, "changed.txt"), "changed\n");
 run("git", ["-C", environment.LAUNCH_TEST_CHECKOUT, "add", "changed.txt"]);
 run("git", ["-C", environment.LAUNCH_TEST_CHECKOUT, "commit", "-qm", "test: drift from base"]);
-const conflictingWorktree = launch();
-assert.equal(conflictingWorktree.status, 1);
-assert.match(JSON.parse(conflictingWorktree.stdout).error, /worktree HEAD does not match base revision/);
+fs.writeFileSync(path.join(environment.LAUNCH_TEST_CHECKOUT, "unfinished.txt"), "worker edits\n");
+const receiptBeforeRepeat = fs.readFileSync(state, "utf8");
+const existingDelivery = launch();
+assert.equal(existingDelivery.status, 0, `accepted launch must tolerate worker progress\n${existingDelivery.stdout}`);
+assert.equal(JSON.parse(existingDelivery.stdout).result, "already-launched");
+assert.equal(fs.readFileSync(state, "utf8"), receiptBeforeRepeat);
+assert.equal(fs.readFileSync(herdrPromptLog, "utf8").split("\n").filter(Boolean).length, 1);
+// The same drift is still unsafe while setup has not submitted its prompt.
+fs.writeFileSync(state, `${JSON.stringify(workspaceOpenState)}\n`);
+const incompleteDrift = launch();
+assert.equal(incompleteDrift.status, 1);
+assert.match(JSON.parse(incompleteDrift.stdout).error, /worktree HEAD does not match base revision/);
+fs.writeFileSync(state, receiptBeforeRepeat);
 assert.equal(fs.readFileSync(wtLog, "utf8"), "issue/5423-isolate-cookies\n");
 assert.equal(fs.readFileSync(herdrOpenLog, "utf8"), "open\n");
+
+// A failed separate issue must leave the successful delivery receipt untouched;
+// the next independent issue can still launch below.
+const failedIndependent = spawnSync(script, [invalidModeHandoff], {
+  cwd: repository, encoding: "utf8", env: environment,
+});
+assert.equal(failedIndependent.status, 1);
+assert.equal(fs.readFileSync(state, "utf8"), receiptBeforeRepeat);
+assert.equal(fs.readFileSync(herdrPromptLog, "utf8").split("\n").filter(Boolean).length, 1);
 
 const piRepository = path.join(temporary, "pi-repository");
 const piHandoff = path.join(temporary, "pi-launch-handoff.json");
@@ -397,6 +469,7 @@ const piRootBranch = run("git", ["-C", piRepository, "branch", "--show-current"]
 fs.writeFileSync(path.join(piRepository, "README.md"), "unrelated local changes\n");
 fs.writeFileSync(piHandoff, `${JSON.stringify({
   id: 5426,
+  url: "https://dev.azure.com/tengella/Tengella/_workitems/edit/5426",
   type: "Issue",
   title: "Standardize CleanFlow authorization",
   state: "In Progress",
@@ -420,6 +493,8 @@ fs.writeFileSync(piHandoff, `${JSON.stringify({
 const piEnvironment = {
   ...environment,
   LAUNCH_TEST_REPOSITORY: piRepository,
+  LAUNCH_TEST_PRIMARY: piRepository,
+  LAUNCH_TEST_REPO_KEY: path.join(piRepository, ".git"),
   LAUNCH_TEST_CHECKOUT: path.join(piRepository, ".worktrees", "issue-5426-standardize-cleanflow-authorization"),
   LAUNCH_TEST_HERDR_STATE: path.join(temporary, "pi-herdr-state"),
   LAUNCH_TEST_WT_LOG: path.join(temporary, "pi-wt.log"),
@@ -457,6 +532,11 @@ assert.equal(run("git", ["-C", piRepository, "rev-parse", "HEAD"]).trim(), piRoo
 assert.equal(run("git", ["-C", piRepository, "branch", "--show-current"]).trim(), piRootBranch);
 assert.equal(fs.readFileSync(path.join(piRepository, "README.md"), "utf8"), "unrelated local changes\n");
 const afkPrompt = fs.readFileSync(piEnvironment.LAUNCH_TEST_PROMPT_LOG, "utf8");
+assert.match(afkPrompt, /Issue \[#5426\]\(https:\/\/dev.azure.com\/tengella\/Tengella\/_workitems\/edit\/5426\)/);
+assert.match(afkPrompt, /Full issue URL: https:\/\/dev.azure.com\/tengella\/Tengella\/_workitems\/edit\/5426/);
+assert.match(afkPrompt, /Refresh requirements, dependencies, PRs and CI/);
+assert.match(afkPrompt, /explicit human-approved amendments/);
+assert.doesNotMatch(afkPrompt, /only for lifecycle updates/);
 assert.match(afkPrompt, /Run \$tengella-deliver for issue #/);
 assert.match(afkPrompt, /Review is the stopping point/);
 assert.match(afkPrompt, /herdr notification show "#\d+: Review"/);
