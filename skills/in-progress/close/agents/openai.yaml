@@ -1,0 +1,7 @@
+interface:
+  display_name: "Close"
+  short_description: "Close an issue after its PRs merge and answer its origin."
+  default_prompt: "Use $close on this issue."
+
+policy:
+  allow_implicit_invocation: false

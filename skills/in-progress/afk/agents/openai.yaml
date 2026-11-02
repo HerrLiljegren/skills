@@ -1,0 +1,7 @@
+interface:
+  display_name: "AFK"
+  short_description: "Implement an AFK-ready issue to green PRs without supervision."
+  default_prompt: "Use $afk on this issue."
+
+policy:
+  allow_implicit_invocation: false

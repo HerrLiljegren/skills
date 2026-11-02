@@ -1,0 +1,7 @@
+interface:
+  display_name: "Triage"
+  short_description: "Turn a ticket, order, bug or idea into an AFK-ready issue."
+  default_prompt: "Use $triage on this input."
+
+policy:
+  allow_implicit_invocation: false
