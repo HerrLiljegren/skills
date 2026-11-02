@@ -1,0 +1,6 @@
+interface:
+  display_name: "Delivery pilot"
+  short_description: "Try model roles and agent-executed verification"
+  default_prompt: "Use $delivery-pilot for the selected delivery boundary with explicit model roles and agent-executed verification."
+policy:
+  allow_implicit_invocation: false
