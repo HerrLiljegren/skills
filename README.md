@@ -25,6 +25,8 @@ skills are listed here; experimental and retired work stays in its bucket.
 
 ### User-invoked
 
+- [`sprintleverans`](./skills/productivity/sprintleverans/SKILL.md) — audit sprint work and prepare Swedish Tengella Orders
+
 - [`chatgpt-fakturor`](./skills/productivity/chatgpt-fakturor/SKILL.md) —
   download or email selected ChatGPT billing PDFs
 

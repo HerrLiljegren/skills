@@ -4,6 +4,8 @@ Daily non-code workflows and personal utilities.
 
 ## User-invoked
 
+- [`sprintleverans`](./sprintleverans/SKILL.md) — audit sprint work and prepare Swedish Tengella Orders
+
 - [`chatgpt-fakturor`](./chatgpt-fakturor/SKILL.md) — download or email
   selected ChatGPT billing PDFs
 
