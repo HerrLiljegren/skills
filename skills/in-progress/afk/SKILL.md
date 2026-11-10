@@ -1,16 +1,11 @@
 ---
 name: afk
-description: Implement an AFK-ready issue to green PRs without supervision.
-disable-model-invocation: true
+description: Trigger this is the user says 'full send'.
 ---
 
 # AFK
 
-Implement one issue produced by `/triage` until every repository it names has a **green** PR waiting
-for human review. The human is away; the issue is the whole brief. This skill does not care which
-app or harness launched it.
-
-Green means all of:
+Implement one issue produced by `/triage` until:
 
 - CI passes on the PR.
 - Every acceptance criterion has evidence in the PR body: a test, a command and its output, or a
