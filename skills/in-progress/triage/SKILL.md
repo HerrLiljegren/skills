@@ -41,17 +41,30 @@ remains that would make an AFK agent stop or guess.
 
 ## 5. Record the issue
 
-Write the issue in Linear, even when the repo's own guidance names Azure DevOps: this flow is the
-trial of moving to Linear. Pick the team that owns the work; ask when that is not clear. Use these
-sections:
+Write the issue in Linear, team DEV (Engineering Lab), unless the user names another team. When the
+input is already an Azure DevOps item in a Feature tree, keep the issue there and append to it
+instead. Use these sections:
 
 - **Origin**: Ticket/Order reference, or "none".
 - **Problem**: what is wrong or missing, in the user's terms.
 - **Repositories**: each repo, its role (producer/consumer) and landing order.
 - **Reproduction**: steps and observed result, or why none applies.
-- **Acceptance criteria**: each one checkable by running something or reading a diff.
+- **Acceptance criteria**: each one checkable by running something or reading a diff, as `- [ ]`
+  checkboxes. Mark a criterion that only a human can check as a human gate.
+- **Authorizations**: what `/afk` may do without asking for this issue, such as running the local
+  database harness, starting Aspire, queueing CI or commenting on the tracker. Ask the user for
+  these here, so the AFK run does not have to.
 - **Out of scope**: what was considered and deliberately left out.
 - **Decisions**: the questions asked here and their answers.
 
-Done when every acceptance criterion is checkable and the issue links its origin. Report the issue
-link; implementation starts with `/afk`.
+Show rather than tell. Where it helps a reader, attach media: a screenshot of the defect, a chart of
+the measured numbers, a diagram of the flow being changed. The `pr` skill's visuals section lists
+the kinds and where each works.
+
+Done when every acceptance criterion is checkable and the issue links its origin.
+
+## 6. Hand off
+
+Report the issue link. Then ask through the question tool whether to start `/afk` on it in a new
+top-level session (in T3, a new thread), not in this one and not as a subagent. Start it only on a
+yes, with the model and effort the user picks (recommended: Codex GPT-6.1 Sol, extra high).
