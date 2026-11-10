@@ -18,6 +18,10 @@ and report which.
 
 - Status: done.
 - Tags/labels: match what was actually shipped (area, type, repos touched).
+- Acceptance criteria: tick each one that is now met, including post-release human gates you checked
+  yourself, such as production measurements. A criterion that is still open stays unticked and names
+  the follow-up issue that carries it (for example `→ DEV-40`). Do not close the issue while an
+  unticked criterion has no follow-up.
 - Closing note: record only what a future reader would need and could not get from the PRs, such as
   a follow-up, a known limitation, or a gotcha found on the way. Skip the note when there is nothing
   like that.
