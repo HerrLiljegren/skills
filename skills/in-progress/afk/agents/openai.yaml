@@ -1,7 +1,7 @@
 interface:
   display_name: "AFK"
-  short_description: "Implement an AFK-ready issue to green PRs without supervision."
+  short_description: "Implement a /triage issue to verified, green PRs waiting for review."
   default_prompt: "Use $afk on this issue."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true
