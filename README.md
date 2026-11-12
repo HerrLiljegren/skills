@@ -3,6 +3,18 @@
 Small, reusable skills for personal engineering and workflow tasks. Promoted skills are listed here;
 experimental and retired work stays in its bucket.
 
+## Repository checks
+
+Run `bash scripts/check.sh` with Git, Bash, uv, Node 24+, jq and iconv on PATH. It discovers tracked
+Python unittest suites, shell scripts for `bash -n`, and Node test suites (regular and
+linked-checkout modes). Python suites use Sprintleverans's locked uv runtime, including its Markdown
+parser, with `python -I`. The first run downloads a managed Python and packages; system Python is
+unchanged. GitHub Actions runs the same entry point in [check.yml](.github/workflows/check.yml).
+
+These are runtime and syntax checks. Changed skills still need the metadata validator and invocation
+policy checks described in [AGENTS.md](AGENTS.md) and
+[.agents/invocation.md](.agents/invocation.md).
+
 ## Engineering
 
 ### User-invoked
