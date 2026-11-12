@@ -231,3 +231,10 @@ In T3 Code, once the PR is published, call `write_pull_request_guides` with ever
 guide is tied to its head commit, so call it again after each push that changes the head. Runs take
 minutes; continue meanwhile, and before handing back read each with `read_pull_request_guide` and
 report whether its guide is ready. Outside T3 Code, skip this section.
+
+## Check
+
+Before publishing, run `python3 scripts/check_body.py <body.md> [--host azure|github] [--draft]`
+from this skill's folder. It fails on a missing section, an unfilled placeholder or a body over the
+host's limit (Azure DevOps: 4000 characters), and on an empty verdict unless `--draft`. It warns on
+local paths, full SHAs and claims about a run. Fix every error; fix a warning unless it is wrong.
