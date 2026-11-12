@@ -172,6 +172,7 @@ class Cli:
 # ---------------------------------------------------------------- preflight
 
 def preflight(pack: Pack, apphost: str | None) -> int:
+    verify_readiness()
     manifest = pack.manifest
     cli = Cli(pack, {'apphost': apphost})
     status = subprocess.run(['tengella', 'account', 'status', '--json'], capture_output=True, text=True)
@@ -219,6 +220,8 @@ def preflight(pack: Pack, apphost: str | None) -> int:
 # ---------------------------------------------------------------- run
 
 def run(pack: Pack, dry_run: bool) -> int:
+    # Fail before the ledger, delivery lock, or any remote operation is started.
+    verify_readiness()
     manifest, root = pack.manifest, pack.root
     readiness = load(root / 'readiness.json')
     if not dry_run and not manifest['authorization'].get('orderWrites'):
@@ -370,12 +373,23 @@ def run(pack: Pack, dry_run: bool) -> int:
 
 # ---------------------------------------------------------------- verify
 
+def verify_readiness() -> None:
+    """Exercise the final verifier's parser, including its link dependency, before delivery."""
+    try:
+        projected = solution_text('**Ready**\n\n- [link](https://example.invalid/)')
+    except ImportError as error:
+        launcher = Path(__file__).with_name('python.sh')
+        raise SystemExit(f'Final verification is not ready: {error}. '
+                         f'Use `bash {shlex.quote(str(launcher))} '
+                         f'{shlex.quote(str(Path(__file__)))} <command> --pack <pack>` '
+                         'to prepare the locked uv runtime before delivery.') from error
+    if projected != 'Ready link':
+        raise SystemExit('Final verification parser failed its readiness check; restore the locked uv runtime.')
+
+
 def solution_text(source: str) -> str:
     """Project Markdown before comparing it with the API's plain-text read-back."""
-    try:
-        from markdown_it import MarkdownIt
-    except ImportError:
-        raise SystemExit('verify requires markdown-it-py in the Python environment running deliver.py.')
+    from markdown_it import MarkdownIt
 
     class Text(HTMLParser):
         def __init__(self):
@@ -399,6 +413,7 @@ def solution_text(source: str) -> str:
 
 
 def verify(pack: Pack) -> int:
+    verify_readiness()
     manifest, root = pack.manifest, pack.root
     readiness = load(root / 'readiness.json')
     ledger = load(root / 'ledger.json')

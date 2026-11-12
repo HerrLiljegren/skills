@@ -8,7 +8,12 @@ disable-model-invocation: true
 
 Turn a sprint's work into presentation-ready Tengella Orders: collect, shortlist, author, deliver,
 verify. The scripts beside this file do the mechanical work; your judgement goes into grouping and
-writing. Run the scripts with `python3 -I <skill-dir>/scripts/<script>.py`.
+writing. Run every script with `bash <skill-dir>/scripts/python.sh <skill-dir>/scripts/<script>.py`.
+The launcher prepares the locked uv environment before starting Python in isolated (`-I`) mode. It
+requires uv on PATH; the first invocation downloads a uv-managed Python 3.12 and the locked Markdown
+packages into an isolated environment. It leaves system Python unchanged. Bootstrap it before
+delivery with `bash <skill-dir>/scripts/python.sh <skill-dir>/scripts/deliver.py --help`. For
+offline delivery, prepare it while online first. A failed bootstrap starts no delivery command.
 
 ## 1. Set up the pack
 
@@ -62,6 +67,9 @@ Lösning as the audience will see it.
    Implementationsdetaljer, images, mark developed. Each step's operation ID goes to `ledger.json`
    before dispatch. One blocked item does not stop the others.
 
+Use the launcher above for each command. `preflight` and `run` check the final verifier's Markdown
+parser before any Order operation; resolve runtime failures before continuing.
+
 For a blocked item, inspect its retained operation with `tengella order operation --help` and
 recover with that same ID; a new ID is a new write. Rerunning `run` resumes after the last verified
 step and refuses any step whose outcome is uncertain.
@@ -69,10 +77,6 @@ step and refuses any step whose outcome is uncertain.
 Completion: `run` reports every selected item at its stage, or names its blocker.
 
 ## 5. Verify and hand back
-
-The Python environment running `verify` needs `markdown-it-py` to compare Markdown with the API's
-plain-text read-back. Install it with `python3 -m pip install markdown-it-py` (use a virtual
-environment when required by the host). The other commands use only the standard library.
 
 Run `deliver.py verify --pack <pack>`. It reads back each Order and its linked DevOps story, and
 writes `LEVERANS-<N>.md` with Present links. Open one Order's Present page in the user's browser to
