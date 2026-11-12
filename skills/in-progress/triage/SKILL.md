@@ -67,4 +67,5 @@ Done when every acceptance criterion is checkable and the issue links its origin
 
 Report the issue link. Then ask through the question tool whether to start `/afk` on it in a new
 top-level session (in T3, a new thread), not in this one and not as a subagent. Start it only on a
-yes, with the model and effort the user picks (recommended: Codex GPT-6.1 Sol, extra high).
+yes, with the model and effort the user picks (recommended: the **afk** role from host-local agent
+guidance).

@@ -12,8 +12,15 @@ review, with:
 
 - Evidence in the PR body for every acceptance criterion: a test, a command and its output, or a
   screenshot.
-- A **PASS** verdict from an agent that did not write the code (step 4).
-- CI finished and passing, so the human never reviews a PR with failing checks (step 6).
+- A **PASS** verdict from an agent that did not write the code (step 6).
+- CI finished and passing, so the human never reviews a PR with failing checks (step 8).
+
+Two rules for the whole run, so the human always hears back:
+
+- Never end a turn on a question or a choice written as text: it raises no notification and the
+  thread looks finished. Ask through the question tool, or hand back.
+- Do not babysit work that runs for more than about an hour (a long query, a slow pipeline) with
+  background monitors. Hand back with what is in hand and what is still running.
 
 ## 1. Read the issue
 
@@ -36,27 +43,54 @@ Producer first: implement, test, and run it to show the new behaviour working. T
 built and tested against the running producer, not a mock of what it should do. Run the system the
 way the repo provides: its verification skill if it has one, otherwise its Aspire AppHost.
 
-## 4. Verify
+Pass the repository's own checks before anything else: build, analyzers, formatting and any
+complexity or architecture rule. A check that runs is cheaper than a reviewer and never loops.
 
-Hand the issue and the branches to a fresh agent with no implementation context. It runs each
-acceptance criterion the way a user would, on the base branch and on the head, and returns **PASS**,
-**PASS+NOTES** or **FAIL** with the evidence for each criterion.
+## 4. Review the design
 
-It reports a defect only with proof it ran: a failing test, a script, or command output. Style,
-naming, structure and risks that need a future change to matter are not findings.
+Start the `reviewer` agent once, with the issue and the diff. Where the harness cannot start it by
+name, start a fresh agent on the **reviewer** role's model from host-local agent guidance. It sorts
+its findings into **blocking** and **notes**.
 
-On FAIL, fix and verify again with a new agent. If the harness cannot start one, do not verify your
-own work: record "verdict missing" in the PR and the risk call, and carry on.
+Fix the blocking findings. Notes go to the PR body for the human; they never start a fix. There is
+no second design review: the verifier checks the fixed version in step 6. When a blocking finding is
+something an analyzer, test or architecture rule could catch, say so in the hand-back; it belongs in
+a check, not in another review.
 
-## 5. Open the PRs
+## 5. Draft the PR bodies
 
-One PR per repository, each linking the issue and, for multi-repo work, its sibling PR. Write the
-body with the `pr` skill: it carries the evidence, the verdict, the checks left to the human and the
-**risk call** (whether this change would be safe to merge without human review, and why). Merging
-stays manual for now; the risk calls are the record for deciding later whether low-risk work can
-skip review.
+One PR body per repository, written with the `pr` skill before verification so the verifier can
+check its claims. It carries the evidence, the design notes, the checks left to the human and the
+**risk call** (whether this change would be safe to merge without human review, and why). Leave the
+verdict section empty, and check it with the `pr` skill's check in `--draft` mode. Merging stays
+manual for now; the risk calls are the record for deciding later whether low-risk work can skip
+review.
 
-## 6. Hand back
+## 6. Verify
+
+Start the `verifier` agent with the issue, the branches and the PR body drafts. Where the harness
+cannot start it by name (for example a delegation to another provider), start a fresh agent with no
+implementation context on the **verifier** role's model from host-local agent guidance. It runs each
+acceptance criterion the way a user would, on the base branch and on the head, checks every claim in
+the PR bodies against its own runs, and returns **PASS**, **PASS+NOTES** or **FAIL** with the
+evidence for each criterion. Paste its verdict and evidence into the PR body's verdict section as it
+wrote them.
+
+It fails only on an acceptance criterion or a false claim in a PR body. Anything else is a note for
+the human, never a reason for another round.
+
+On FAIL, fix and start a new verifier with the earlier findings and what you did about each. It
+re-runs the failed criteria and claims, and quickly re-runs the ones that passed. After a second
+FAIL on the same criterion or claim, stop and hand back with what failed and why: a rerun on higher
+effort is the human's call. If the harness cannot start a verifier, do not verify your own work:
+record "verdict missing" in the PR and the risk call, and carry on.
+
+## 7. Open the PRs
+
+Run the `pr` skill's check on each final body, without `--draft`, and fix every error. Open one PR
+per repository with its body, each linking the issue and, for multi-repo work, its sibling PR.
+
+## 8. Hand back
 
 Wait for CI on every PR before handing back. Stay in the run while it runs: poll its status with the
 repo's CLI rather than ending the turn and counting on being woken later. If a check fails, fix,
