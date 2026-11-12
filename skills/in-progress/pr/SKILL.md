@@ -58,16 +58,47 @@ Prefer media over prose wherever it shows the point faster, here and in issues:
 
 | Change                        | Best evidence                                          |
 | ----------------------------- | ------------------------------------------------------ |
-| Interaction or flow in the UI | Short video or GIF, before and after                   |
-| Visual change                 | Screenshots, before and after                          |
+| Interaction or flow in the UI | GIF up to 10 s, before and after; longer: MP4          |
+| Visual change                 | Screenshots, before and after, the change boxed        |
 | Numbers (counts, timings)     | A chart rendered to PNG, with the query that made it   |
-| Structure or control flow     | Diagram: Mermaid where the host renders it, else ASCII |
+| Structure or control flow     | Diagram: Mermaid where the host renders it, else a PNG |
 | Behaviour                     | The failing and passing test run                       |
 
 Capture media from the running system (the repo's verification skill or Aspire). Upload it as an
 attachment to the PR or issue. When the tooling cannot upload, put the reason in **You need to**, so
 the reviewer knows a picture exists and where to look; never commit media to the repository just to
 show it.
+
+[`scripts/media.sh`](scripts/media.sh) prepares media: `check` first on a new machine (it prints the
+fix for each missing tool), then `crop`, `annotate`, `mermaid` and `gif`.
+
+- **Screenshots:** capture at 2× device scale and crop to the part that changed. Box the change on
+  the After image with `media.sh annotate`; leave Before clean.
+- **Layout:** stack Before above After under bold labels. Hosts render the body about 770 px wide,
+  so a two-column table halves each image; use one only for narrow crops.
+- **Full size:** on Azure DevOps, clicking an inline image does nothing. Wrap each one in a link to
+  itself: `[![After: ISO weeks](URL)](URL)`. This doubles a ~190-character URL against the
+  4000-character limit, so pick the few images that carry the point.
+- **Diagrams:** where Mermaid does not render, write the `.mmd`, render it with `media.sh mermaid`
+  and attach the PNG.
+- **Recordings:** a GIF plays without a click, so it suits short loops; `media.sh gif` converts a
+  recording. Attach longer recordings as MP4.
+
+What renders in a PR body (Azure DevOps tested on a live PR, November 2026; GitHub not tested here):
+
+| Markup                        | Azure DevOps                    | GitHub          |
+| ----------------------------- | ------------------------------- | --------------- |
+| ` ```mermaid ` block          | Code block, not a diagram       | Diagram         |
+| `::: mermaid` (wiki syntax)   | Plain text                      | Plain text      |
+| `![alt](url.png)`             | Inline, scaled to fit; no click | Opens full size |
+| `[![alt](url)](url)`          | Opens the original in the tab   | Opens full size |
+| `![alt](url =300x)`           | 300 px wide                     | Untested        |
+| `<img src="url" width="300">` | 300 px wide                     | 300 px wide     |
+| `![alt](clip.mp4)`            | Video player                    | Untested        |
+| Uploaded MP4 (drag and drop)  | Not applicable                  | Video player    |
+| `<video src controls>`        | Video player                    | Untested        |
+| GIF                           | Inline, plays                   | Inline, plays   |
+| `<details><summary>`          | Collapsible                     | Collapsible     |
 
 Save a copy of every screenshot and recording in `~/.t3/userdata/sprint-evidence/<repo>-<branch>/`.
 Sprint delivery takes its pictures from there.
@@ -114,7 +145,8 @@ src/
 └── transport/      # sends API requests
 ```
 
-- Show component interaction, control flow, or data flow with Mermaid:
+- Show component interaction, control flow, or data flow with Mermaid (on Azure DevOps, as a
+  rendered PNG; see Media):
 
 ```mermaid
 sequenceDiagram
@@ -237,4 +269,5 @@ report whether its guide is ready. Outside T3 Code, skip this section.
 Before publishing, run `python3 scripts/check_body.py <body.md> [--host azure|github] [--draft]`
 from this skill's folder. It fails on a missing section, an unfilled placeholder or a body over the
 host's limit (Azure DevOps: 4000 characters), and on an empty verdict unless `--draft`. It warns on
-local paths, full SHAs and claims about a run. Fix every error; fix a warning unless it is wrong.
+local paths, full SHAs, claims about a run and, on Azure DevOps, images not linked to their
+original; a Mermaid block is an error there. Fix every error; fix a warning unless it is wrong.

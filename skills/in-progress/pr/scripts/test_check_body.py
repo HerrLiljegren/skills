@@ -57,6 +57,28 @@ class CheckBodyTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(len(warnings), 2)
 
+    def test_images_must_link_to_their_original(self):
+        body = GOOD + (
+            "\n![bare](https://x/a.png)\n"
+            "[![linked](https://x/b.png)](https://x/b.png)\n"
+            "[![elsewhere](https://x/c.png)](https://x/other)\n"
+            "![clip](https://x/flow.mp4)\n"
+        )
+        warnings = check(body, "azure", draft=False)[1]
+        self.assertEqual(
+            warnings,
+            [
+                "image is not linked to its original, so it cannot be opened full size: https://x/a.png",
+                "image links somewhere other than its original: https://x/c.png",
+            ],
+        )
+        self.assertEqual(check(body, "github", draft=False)[1], [])
+
+    def test_mermaid_block_fails_on_azure_only(self):
+        body = GOOD + "\n```mermaid\ngraph LR\n  a --> b\n```\n"
+        self.assertTrue(any("Mermaid" in e for e in check(body, "azure", draft=False)[0]))
+        self.assertEqual(check(body, "github", draft=False)[0], [])
+
 
 if __name__ == "__main__":
     unittest.main()

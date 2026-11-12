@@ -4,7 +4,8 @@
 Errors fail the check (exit 1): a missing section, an unfilled template placeholder, a body over the
 host's length limit, or (unless --draft) an empty verdict. Warnings print but do not fail: things a
 reviewer cannot use, such as local file paths, full commit SHAs and claims about a run instead of
-the run itself.
+the run itself. On Azure DevOps it also warns on images a click cannot open full size, and a Mermaid
+code block is an error: it shows as source, not a diagram.
 
 Usage: check_body.py <body.md> [--host azure|github] [--draft]
 """
@@ -35,6 +36,12 @@ VERDICT = re.compile(r"^\*\*Verdict:\*\*\s*(PASS\+NOTES|PASS|FAIL)\b", re.M)
 PLACEHOLDER = re.compile(r"<[a-z][a-z ,'/:;-]* [a-z ,'/:;-]+>")
 LOCAL_PATH = re.compile(r"(?<![\w/.])(/home/|/tmp/|/Users/|[A-Za-z]:\\Users\\)\S*")
 FULL_SHA = re.compile(r"\b[0-9a-f]{40}\b")
+# An image not wrapped in a link: Azure DevOps does nothing when an inline image is clicked.
+# Videos are exempt: Azure DevOps renders `![](clip.mp4)` as a player.
+IMAGE = re.compile(r"(?<!\[)!\[[^\]]*\]\(([^)\s]+)[^)]*\)")
+LINKED_IMAGE = re.compile(r"\[!\[[^\]]*\]\(([^)\s]+)[^)]*\)\]\(([^)\s]+)\)")
+VIDEO = re.compile(r"\.(mp4|webm|mov)(\?|$)", re.I)
+MERMAID_FENCE = re.compile(r"^(```|~~~)\s*mermaid\b", re.M)
 TELLING = re.compile(
     r"\b(verified locally|all (the )?tests pass(ed)?|review passed|tests are green|works on my machine)\b",
     re.I,
@@ -66,12 +73,22 @@ def check(text: str, host: str, draft: bool) -> tuple[list[str], list[str]]:
     if len(text) > limit:
         errors.append(f"{len(text)} characters, over the {host} limit of {limit} by {len(text) - limit}")
 
+    if host == "azure" and MERMAID_FENCE.search(text):
+        errors.append("Mermaid code block renders as source on Azure DevOps; attach a PNG (media.sh mermaid)")
+
     for match in sorted({m.group(0) for m in LOCAL_PATH.finditer(outside_code)}):
         warnings.append(f"local path the reviewer cannot open: {match}")
     if FULL_SHA.search(outside_code):
         warnings.append("full commit SHA in the body; link the commit instead")
     for match in sorted({m.group(0).lower() for m in TELLING.finditer(outside_code)}):
         warnings.append(f"claim about a run ('{match}'); show the run or leave it to CI")
+
+    if host == "azure":
+        for src in sorted({src for src in IMAGE.findall(outside_code) if not VIDEO.search(src)}):
+            warnings.append(f"image is not linked to its original, so it cannot be opened full size: {src}")
+        for img, href in LINKED_IMAGE.findall(outside_code):
+            if img != href and not VIDEO.search(img):
+                warnings.append(f"image links somewhere other than its original: {img}")
 
     return errors, warnings
 
