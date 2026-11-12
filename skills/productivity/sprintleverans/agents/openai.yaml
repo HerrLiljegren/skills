@@ -1,6 +1,6 @@
 interface:
   display_name: "Sprintleverans"
-  short_description: "Audit sprint work and prepare Tengella Orders"
-  default_prompt: "Use $sprintleverans to audit recent work and prepare Swedish Tengella Orders for sprint delivery."
+  short_description: "Audit sprint work and deliver Tengella Orders"
+  default_prompt: "Use $sprintleverans to collect this sprint's work and deliver Swedish Tengella Orders."
 policy:
   allow_implicit_invocation: false

@@ -1,114 +1,73 @@
 ---
 name: sprintleverans
-description: Audit sprint activity and prepare Swedish Tengella Orders for sprint delivery.
+description: Audit sprint activity and deliver Swedish Tengella Orders for sprint delivery.
 disable-model-invocation: true
 ---
 
 # Sprintleverans
 
-Turn a bounded period of work into an auditable shortlist, then create or reconcile the approved
-Tengella Orders through their requested delivery state.
+Turn a sprint's work into presentation-ready Tengella Orders: collect, shortlist, author, deliver,
+verify. The scripts beside this file do the mechanical work; your judgement goes into grouping and
+writing. Run the scripts with `python3 -I <skill-dir>/scripts/<script>.py`.
 
-## 1. Establish the boundary
+## 1. Set up the pack
 
-Resolve the date window, work scope, source harnesses, deadline, and requested stage: shortlist,
-create Orders, assign sprint, or mark developed. Default the audit to the last two weeks when no
-dates are given; state the dates. Use Swedish for Order content and the user's conversation language
-for updates.
+Resolve the sprint number, the target environment (production unless told otherwise) and the
+requester. The sprint is the one the Orders belong to, which may differ from today's active sprint.
+Create the pack folder and `manifest.json` as described in [PACK.md](PACK.md). Internal development
+work defaults to UTV, `requireCustomerAccept: false` and `shouldBeInvoiced: false`; record these in
+`choices` and name them in the shortlist so the user confirms them with the selection.
 
-Resolve the exact sprint number before assigning it. Delivery day may be the first day of the next
-sprint; the currently active sprint is not sufficient evidence for retrospective work.
+Completion: `manifest.json` names the sprint, period, environment, requester and choices.
 
-Completion: the audit boundary is stated; every external action has a clear requested scope. Ask
-only for missing decisions and reuse authorization already given. Approval to create Orders does not
-by itself authorize submission or marking them developed.
+## 2. Collect and shortlist
 
-## 2. Reconstruct activity
+Run `collect.py --pack <pack> --sprint <N>`. It writes completed PRs from every repository, Codex
+and Claude session leads, and screenshot leads for the sprint window into `<pack>/collect/`. Read T3
+work with `t3_thread_list` (all projects, bounded) and `t3_thread_read` only for threads whose work
+has no PR yet. Count a mirrored or subagent thread once, with its parent.
 
-Use the requested Codex and Claude session records as primary evidence, including investigations,
-design, reviews, implementation and unfinished work. Locate available stores from the environment.
-Filter messages by timestamp and actual user/assistant role; exclude injected instructions, memory
-blocks, tool output and inherited/subagent duplication from activity counts. Summarize the work
-without reproducing raw session history or credentials.
+Group by outcome, not by PR or session: one Order per delivered capability or fix. Merged PRs are
+the evidence for `done`; open PRs, prototypes and investigations are `wip`. Put each group in
+`manifest.json` with an `orders/NN-slug/notes.md` holding its evidence links.
 
-Use session summaries as leads, then corroborate consequential delivery claims with current Git or
-tracker evidence where practical. Distinguish author, commit and merge dates; an old patch merged
-this sprint is completion work, not necessarily new implementation.
+Completion: the user sees a numbered shortlist (title, one-line outcome, evidence, done/wip) and
+selects, merges or drops items. Record their instruction verbatim in `manifest.authorization`,
+together with the terminal stage they approved. Approval to create Orders authorizes only creation;
+a later stage needs its own approval.
 
-For DevOps reads, follow the installed workspace interface policy and current CLI help. If a
-restricted-shell read fails, test authorized host access before attributing the failure to DevOps.
-Resolve the author identity using supported syntax rather than assuming an `@me` shorthand. Report
-unresolved reads explicitly; do not silently change interfaces.
+## 3. Author the Orders
 
-Group related activity by outcome, not by session or PR count. Separate merged, published, deployed,
-locally verified and human-accepted evidence. Include unfinished work with its remaining boundary.
+Write each selected `order.json` following [FIELDS.md](FIELDS.md): Lösning is the slide the room
+sees, so it carries the outcome. Choose screenshots from `collect/images.json`, copy them into
+`images/` and give each a field and alt text; put the main one on Lösning.
 
-Completion: present a numbered shortlist with purpose, scope, evidence anchors and delivery boundary
-for each candidate. The user selects, combines or excludes items before creation, unless that
-selection is already explicit.
+Completion: `deliver.py check --pack <pack>` passes for every selected item, and you have read each
+Lösning as the audience will see it.
 
-## 3. Prepare the approved Orders
+## 4. Deliver
 
-Check existing Orders and any run-local ID mapping before creating duplicates. For each selected
-item, prepare:
+1. `deliver.py preflight --pack <pack>` resolves the CLI environment, write scope, UTV type,
+   requester and sprint into `readiness.json` and lists Orders whose titles already exist. Resolve
+   every duplicate: set `existingOrderId` to update that Order, or retitle.
+2. `deliver.py run --pack <pack> --dry-run` prints every command. Check it against the approved
+   stage.
+3. `deliver.py run --pack <pack>` creates or updates each Order and takes it through the normal flow
+   to its stage: create, submit, approve, prioritize, assign sprint, Lösning and
+   Implementationsdetaljer, images, mark developed. Each step's operation ID goes to `ledger.json`
+   before dispatch. One blocked item does not stop the others.
 
-| Field                   | Content                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| Titel                   | Concise Swedish outcome or capability                                          |
-| Vad vill kunden uppnå?  | Why the work matters                                                           |
-| Lösningsförslag         | Scope, work-item/PR references, period and remaining boundaries                |
-| Lösning                 | Readable overarching explanation of what the solution changes and how it helps |
-| Implementationsdetaljer | Technical approach and verification details that support the overview          |
+For a blocked item, inspect its retained operation with `tengella order operation --help` and
+recover with that same ID; a new ID is a new write. Rerunning `run` resumes after the last verified
+step and refuses any step whose outcome is uncertain.
 
-Write substantive prose in Lösning, not a generic sentence directing the reader elsewhere. Keep
-uncertain deployment or acceptance claims explicit. If a field appears only after approval, populate
-it when that stage is authorized. For internal development work, use UTV and the confirmed
-requester. Leave billing, customer acceptance, complexity and developer assignment at their existing
-values unless the task supplies those decisions.
+Completion: `run` reports every selected item at its stage, or names its blocker.
 
-Completion: every approved item has distinct Swedish content and a destination; existing Order
-numbers are retained for updates.
+## 5. Verify and hand back
 
-## 4. Apply the requested stage
+Run `deliver.py verify --pack <pack>`. It reads back each Order and its linked DevOps story, and
+writes `LEVERANS-<N>.md` with Present links. Open one Order's Present page in the user's browser to
+check that Lösning and its image render well.
 
-Use the user's chosen browser and identify the tab by title and URL. Follow the browser tool's
-current documentation. Inspect UI state before actions; use supported UI operations for edits,
-transitions and drag-and-drop.
-
-The observed Tengella route is:
-
-1. Create through Internal → Beställningar → Ny; save and record both Best.nr and the URL's OrderId.
-   These are different identifiers.
-2. When submission is authorized, use Skicka in beställning.
-3. Open Granska and use Godkänn when advancing into the approved sprint workflow.
-4. Prioritize the Order in the priority list, moving only the selected cards.
-5. Set Släpps i sprint to the confirmed number and save.
-6. Use Markera som tillagd i sprint.
-7. When explicitly requested, use Markera som utvecklad.
-
-Treat this route as navigation guidance; current controls and validation own the actual transition
-requirements. Saving Släpps i sprint alone does not establish Ligger i sprint. The sprint transition
-can create a linked DevOps UserStory: inspect and retain that link rather than separately creating
-another work item.
-
-Keep a run-local ledger of Order number, URL, last verified state and pending action. After a
-timeout, alert or unchanged screen, read persisted state before retrying; a server-side transition
-may already have completed. Inspect alerts with supported tools and avoid blind mutation retries.
-
-Under a deadline, complete and verify bounded batches and report progress. If a gate blocks one
-item, continue independent authorized items and report the exact blocker. An automatic approval
-rejection must be explained; obtain any missing authorization before retrying the rejected action.
-
-Completion: each requested transition has a visible success state or an explicit per-Order blocker.
-Existing unrelated Orders and content remain intact.
-
-## 5. Read back and hand off
-
-Reload every affected Order and verify its number, title, type, requester, requested sprint,
-workflow status and saved narrative fields. Check Lösning contains the intended overview, not merely
-non-empty text. Do not claim developed from a click attempt or from a populated sprint field.
-
-Return the Order links and verified final states, plus any remaining gates or deadline overrun. Keep
-the relevant browser page open for the user.
-
-Completion: every approved item is accounted for, with no uncertain writes reported as complete.
+Completion: hand back the `LEVERANS-<N>.md` link, the count reached per stage, each blocker with its
+operation ID, and any `wip` items presented without an Order.

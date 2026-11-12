@@ -49,7 +49,8 @@ Leave out **You need to** when nothing is left for the human.
 ## Sections
 
 Skip all preambles and keep prose brief. Use the repository's domain language (`CONTEXT.md` or its
-glossary). Leave out SHAs, revision numbers and process notes; link details instead of pasting them.
+glossary). Leave out SHAs, revision numbers and process notes (review history, who verified what,
+earlier verdicts); link details instead of pasting them.
 
 ## Media
 
@@ -64,8 +65,12 @@ Prefer media over prose wherever it shows the point faster, here and in issues:
 | Behaviour                     | The failing and passing test run                       |
 
 Capture media from the running system (the repo's verification skill or Aspire). Upload it as an
-attachment to the PR or issue. When the tooling cannot upload, say so in the hand-back; never commit
-media to the repository just to show it.
+attachment to the PR or issue. When the tooling cannot upload, put the reason in **You need to**, so
+the reviewer knows a picture exists and where to look; never commit media to the repository just to
+show it.
+
+Save a copy of every screenshot and recording in `~/.t3/userdata/sprint-evidence/<repo>-<branch>/`.
+Sprint delivery takes its pictures from there.
 
 ### Summary
 
@@ -193,12 +198,22 @@ judgement and don't overwhelm the user.
 
 ### Evidence
 
-Concrete evidence that the change works. Show a before and after.
+Concrete evidence that the change works: **show, don't tell**. Each item is a picture or a pasted
+artifact of the run, with a before and an after.
 
-Screenshots are S-tier - when the environment is set up for it and the change is visual.
+Screenshots are S-tier - when the environment is set up for it and the change is visual. A visible
+change without a screenshot is unfinished evidence.
 
-Execution-based evidence is A-tier. Test results, console output. Show the exact test that now fails
-and passes, using pseudocode.
+Execution-based evidence is A-tier: the exact test that now fails and passes, or the console output,
+in a fenced block trimmed to the lines that prove the point:
+
+```text
+Before  OrderNarrativeTests.Draft_can_edit_purpose   FAIL  403 NarrativeLocked
+After   OrderNarrativeTests.Draft_can_edit_purpose   PASS
+```
+
+A claim about a run is telling, not showing: "31 checks pass", "verified locally", "review passed".
+Replace it with the run itself, or leave it to CI's own status.
 
 ### Merge Danger
 
@@ -208,3 +223,11 @@ actions or hard-to-reverse decisions are one-way doors.
 
 The blast radius is the potential impact or scope of the changes introduced by this PR. Consider all
 possibilities. Examples are layout shift, breakages for consumers, mobile responsiveness, etc.
+
+## PR Guide
+
+In T3 Code, once the PR is published, call `write_pull_request_guides` with every PR in the change
+(sibling PRs together, up to 20). It writes the reviewer's guided tour into T3's PR Guide tab. A
+guide is tied to its head commit, so call it again after each push that changes the head. Runs take
+minutes; continue meanwhile, and before handing back read each with `read_pull_request_guide` and
+report whether its guide is ready. Outside T3 Code, skip this section.

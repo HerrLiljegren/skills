@@ -74,7 +74,7 @@ the human must do first; leave out SHAs, revisions and ownership notes; link the
 pasting them:
 
 ```text
-DEV-42 · Ignite cache misses → Redis      PR #5758 · CI ✅ · PASS
+DEV-42 · Ignite cache misses → Redis      PR #5758 · CI ✅ · PASS · Guide ✅
 Solves: each of 7 instances reloaded the tenant partition; now one load is shared.
 
 You need to:
