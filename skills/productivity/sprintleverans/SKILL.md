@@ -22,10 +22,12 @@ Completion: `manifest.json` names the sprint, period, environment, requester and
 
 ## 2. Collect and shortlist
 
-Run `collect.py --pack <pack> --sprint <N>`. It writes completed PRs from every repository, Codex
-and Claude session leads, and screenshot leads for the sprint window into `<pack>/collect/`. Read T3
-work with `t3_thread_list` (all projects, bounded) and `t3_thread_read` only for threads whose work
-has no PR yet. Count a mirrored or subagent thread once, with its parent.
+Run `collect.py --pack <pack> --sprint <N>`. It pages completed PRs across the project as the
+signed-in author (`--author me`), following the CLI's `collection.nextCommand`. `--repo` filters the
+resulting rows when a narrower selection is needed. It writes completed PRs, Codex and Claude
+session leads, and screenshot leads for the sprint window into `<pack>/collect/`. Read T3 work with
+`t3_thread_list` (all projects, bounded) and `t3_thread_read` only for threads whose work has no PR
+yet. Count a mirrored or subagent thread once, with its parent.
 
 Group by outcome, not by PR or session: one Order per delivered capability or fix. Merged PRs are
 the evidence for `done`; open PRs, prototypes and investigations are `wip`. Put each group in
@@ -41,6 +43,9 @@ a later stage needs its own approval.
 Write each selected `order.json` following [FIELDS.md](FIELDS.md): Lösning is the slide the room
 sees, so it carries the outcome. Choose screenshots from `collect/images.json`, copy them into
 `images/` and give each a field and alt text; put the main one on Lösning.
+
+Author narrative fields as Markdown. Use a released CLI whose `order create` and `order update` help
+includes `--format markdown`; `deliver.py` passes it on every create and update.
 
 Completion: `deliver.py check --pack <pack>` passes for every selected item, and you have read each
 Lösning as the audience will see it.
@@ -65,9 +70,14 @@ Completion: `run` reports every selected item at its stage, or names its blocker
 
 ## 5. Verify and hand back
 
+The Python environment running `verify` needs `markdown-it-py` to compare Markdown with the API's
+plain-text read-back. Install it with `python3 -m pip install markdown-it-py` (use a virtual
+environment when required by the host). The other commands use only the standard library.
+
 Run `deliver.py verify --pack <pack>`. It reads back each Order and its linked DevOps story, and
 writes `LEVERANS-<N>.md` with Present links. Open one Order's Present page in the user's browser to
-check that Lösning and its image render well.
+check that Lösning and its image render well, with clickable links and real list bullets in the
+authored narrative fields.
 
 Completion: hand back the `LEVERANS-<N>.md` link, the count reached per stage, each blocker with its
 operation ID, and any `wip` items presented without an Order.

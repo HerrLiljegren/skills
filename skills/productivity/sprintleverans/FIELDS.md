@@ -5,10 +5,10 @@ the mechanical rules marked ✓.
 
 ## How the fields render
 
-Narrative fields are **plain text**. The API escapes markup, turns each line break into `<br />` and
-a blank line into a paragraph gap. Headings, bold, links and Markdown show up as literal characters.
-Structure comes from short paragraphs, `•` bullets and label lines ending in a colon. URLs stay
-plain text.
+Narrative fields are **Markdown**. Pass `--format markdown` on `order create` and `order update`.
+The API converts the source to sanitized HTML for Present: use `-` lists, `[label](https://…)` links
+and `**bold**`. Single line breaks are preserved. Images remain uploaded attachments. `title`,
+`contacts`, `workOrderNumber` and `note` remain plain text.
 
 The presentation page (`Order/Present`) shows **Lösning** alone, full width, in the largest font.
 Every other field sits in a collapsed accordion below it. Lösning is the slide; the rest is detail
@@ -29,12 +29,12 @@ lämnar kundtaggar", not "Fix blur handler".
 
 ### `solution`: Lösning (the slide)
 
-```text
+```markdown
 <En mening: vad som är nytt eller åtgärdat, och för vem.>
 
-• <effekt för användaren>
-• <effekt för användaren>
-• <valfri tredje effekt>
+- <effekt för användaren>
+- <effekt för användaren>
+- <valfri tredje effekt>
 ```
 
 At most 60 words ✓. No URLs ✓, PR numbers, verification or caveats; those belong in
@@ -56,33 +56,38 @@ Leave `whereToSolve` and `contacts` empty; DEV-69 hides empty cards on Present.
 
 ### `suggestedSolution`: Lösningsförslag
 
-```text
+```markdown
 Omfattning:
-• <vad leveransen omfattar>
-• <…>
+
+- <vad leveransen omfattar>
+- <…>
 
 Utanför:
-• <medvetet avgränsat, eller utelämna blocket>
+
+- <medvetet avgränsat, eller utelämna blocket>
 ```
 
 ### `implementationDetails`: Implementationsdetaljer
 
-```text
+```markdown
 Så fungerar det:
-• <teknisk punkt>
-• <teknisk punkt>
 
-Så används det:
-  <kommando eller klickväg, 1–3 rader, indraget två mellanslag>
+- <teknisk punkt>
+- <teknisk punkt>
+
+Så används det: <kommando eller klickväg, 1–3 rader, indraget två mellanslag>
 
 Verifiering:
-• <hur det verifierades och var: test, miljö, granskning>
+
+- <hur det verifierades och var: test, miljö, granskning>
 
 Status:
-• <Sammanfogad i master ÅÅÅÅ-MM-DD> · <Driftsatt ÅÅÅÅ-MM-DD | Ej driftsatt än>
+
+- <Sammanfogad i master ÅÅÅÅ-MM-DD> · <Driftsatt ÅÅÅÅ-MM-DD | Ej driftsatt än>
 
 Källor:
-• PR <nr> – <repo>: <url>
+
+- [PR <nr> – <repo>](url)
 ```
 
 Leave out **Så används det** when there is nothing to run or click. Every source is one bullet with
@@ -113,12 +118,12 @@ it.
 ```json
 {
   "title": "Bevara RUT när fokus lämnar kundtaggar",
-  "solution": "Uppgifter som redan fyllts i ligger kvar när man går vidare från taggfältet.\n\n• RUT och intilliggande fält behåller sitt värde\n• Markören hamnar där man klickade\n• Endast taggarnas sökfält töms",
+  "solution": "Uppgifter som redan fyllts i ligger kvar när man går vidare från taggfältet.\n\n- RUT och intilliggande fält behåller sitt värde\n- Markören hamnar där man klickade\n- Endast taggarnas sökfält töms",
   "purpose": "Att uppgifter i kundformuläret ligger kvar när man byter fält.",
   "customerNeed": "Personal som gick direkt från taggar till RUT förlorade det de nyss skrivit.",
   "howIsItSolvedToday": "De fyllde i RUT och intilliggande fält en gång till.",
-  "suggestedSolution": "Omfattning:\n• Enkel- och flervalsväljare för kundtaggar\n• Fokusbyte med tabb och klick",
-  "implementationDetails": "Så fungerar det:\n• Blur-hanteringen återställer bara komponentens eget sökfält\n• Destinationsfältets värde och fokus lämnas orörda\n\nVerifiering:\n• Komponenttester för enkel- och flerval\n\nStatus:\n• Sammanfogad i master 2026-11-04 · Driftsatt 2026-11-05\n\nKällor:\n• PR 5674 – Tengella_bare: https://dev.azure.com/tengella/Tengella/_git/Tengella_bare/pullrequest/5674",
+  "suggestedSolution": "Omfattning:\n- Enkel- och flervalsväljare för kundtaggar\n- Fokusbyte med tabb och klick",
+  "implementationDetails": "Så fungerar det:\n- Blur-hanteringen återställer bara komponentens eget sökfält\n- Destinationsfältets värde och fokus lämnas orörda\n\nVerifiering:\n- Komponenttester för enkel- och flerval\n\nStatus:\n- Sammanfogad i master 2026-11-04 · Driftsatt 2026-11-05\n\nKällor:\n- [PR 5674 – Tengella_bare](https://dev.azure.com/tengella/Tengella/_git/Tengella_bare/pullrequest/5674)",
   "whereInSystem": "Kund › Redigera › Taggar",
   "note": "Sprint 183 · arbete 28 okt–11 nov 2026",
   "images": [

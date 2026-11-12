@@ -18,6 +18,7 @@ import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 
 NARRATIVE = ['purpose', 'customerNeed', 'howIsItSolvedToday', 'whereInSystem', 'whereToSolve',
@@ -80,7 +81,7 @@ def lint(order: dict, root: Path) -> list[str]:
     if '\n' in note.strip() or not note.startswith('Sprint '):
         problems.append('note must be one line starting "Sprint <N> · arbete …"')
     for line in (order.get('implementationDetails') or '').splitlines():
-        if URL.search(line) and not line.lstrip().startswith('•'):
+        if URL.search(line) and not re.match(r'^\s*(?:[-+*]|•)\s+', line):
             problems.append(f'source URL outside a bullet: {line.strip()[:60]}')
     sentences = {}
     for field in NARRATIVE:
@@ -297,7 +298,7 @@ def run(pack: Pack, dry_run: bool) -> int:
                     file = folder / 'execution' / 'update-early.json'
                     if not dry_run:
                         save(file, {'content': early})
-                    revision = effects(dispatch(item, 'update-early', ['order', 'update', '--id', str(identifier),
+                    revision = effects(dispatch(item, 'update-early', ['order', 'update', '--format', 'markdown', '--id', str(identifier),
                                        '--expected-revision', revision, '--fields-file', str(file)]), current['statusId'])['revision']
                     current_status = current['statusId']
                 else:
@@ -307,7 +308,7 @@ def run(pack: Pack, dry_run: bool) -> int:
                     if not dry_run:
                         file.parent.mkdir(exist_ok=True)
                         save(file, creation)
-                    result = effects(dispatch(item, 'create', ['order', 'create', '--fields-file', str(file)]), 1)
+                    result = effects(dispatch(item, 'create', ['order', 'create', '--format', 'markdown', '--fields-file', str(file)]), 1)
                     identifier, number, revision, done = result['orderId'], result['number'], result['revision'], 0
                     prioritized, current_status = False, 1
                 state.update({'id': identifier, 'number': number, 'state': STAGE_ORDER[done],
@@ -333,7 +334,7 @@ def run(pack: Pack, dry_run: bool) -> int:
                     file = folder / 'execution' / 'update-late.json'
                     if not dry_run:
                         save(file, {'content': late})
-                    revision = effects(dispatch(item, 'update-late', ['order', 'update', '--id', str(identifier),
+                    revision = effects(dispatch(item, 'update-late', ['order', 'update', '--format', 'markdown', '--id', str(identifier),
                                        '--expected-revision', revision, '--fields-file', str(file)]), current_status)['revision']
                     for index, image in enumerate(order.get('images', [])):
                         source = root / image['path']
@@ -369,6 +370,34 @@ def run(pack: Pack, dry_run: bool) -> int:
 
 # ---------------------------------------------------------------- verify
 
+def solution_text(source: str) -> str:
+    """Project Markdown before comparing it with the API's plain-text read-back."""
+    try:
+        from markdown_it import MarkdownIt
+    except ImportError:
+        raise SystemExit('verify requires markdown-it-py in the Python environment running deliver.py.')
+
+    class Text(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.parts = []
+
+        def handle_data(self, data):
+            self.parts.append(data)
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ('p', 'li', 'br', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+                self.parts.append('\n')
+
+        def handle_endtag(self, tag):
+            if tag in ('p', 'li', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+                self.parts.append('\n')
+
+    parser = Text()
+    parser.feed(MarkdownIt('commonmark', {'html': False, 'breaks': True}).render(source))
+    return ' '.join(''.join(parser.parts).split())
+
+
 def verify(pack: Pack) -> int:
     manifest, root = pack.manifest, pack.root
     readiness = load(root / 'readiness.json')
@@ -389,7 +418,8 @@ def verify(pack: Pack) -> int:
         if final['statusId'] != expected:
             problems.append(f"{item['id']}: status {final['statusId']}, expected {expected}")
         # The text projection appends each inline image's alt text right after the authored text.
-        if not (final['content'].get('solution') or {}).get('text', '').startswith(order['solution'].strip()) and expected in (10, 7):
+        actual = ' '.join((final['content'].get('solution') or {}).get('text', '').split())
+        if expected in (10, 7) and not actual.startswith(solution_text(order['solution'])):
             problems.append(f"{item['id']}: saved Lösning differs from order.json")
         if final.get('workItemId'):
             story = subprocess.run(['tengella', 'devops', 'item', 'show', str(final['workItemId']), '--json'],

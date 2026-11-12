@@ -64,10 +64,13 @@ Prefer media over prose wherever it shows the point faster, here and in issues:
 | Structure or control flow     | Diagram: Mermaid where the host renders it, else a PNG |
 | Behaviour                     | The failing and passing test run                       |
 
-Capture media from the running system (the repo's verification skill or Aspire). Upload it as an
-attachment to the PR or issue. When the tooling cannot upload, put the reason in **You need to**, so
-the reviewer knows a picture exists and where to look; never commit media to the repository just to
-show it.
+Capture media from the running system (the repo's verification skill or Aspire). For Azure DevOps,
+upload with `tengella devops pr attach --repository <repo> --id <pr> --file-path <path> --json`. Use
+a released CLI carrying that command. It accepts PNG, JPG, GIF and MP4 up to 10 MiB and verifies the
+upload by read-back. Uploading does not embed: insert the returned Markdown through
+`tengella devops pr update <pr> --description-file <file>` or
+`tengella devops pr thread create <pr> --content-file <file>`. For other hosts, use their attachment
+mechanism. Keep media out of the repository.
 
 [`scripts/media.sh`](scripts/media.sh) prepares media: `check` first on a new machine (it prints the
 fix for each missing tool), then `crop`, `annotate`, `mermaid` and `gif`.

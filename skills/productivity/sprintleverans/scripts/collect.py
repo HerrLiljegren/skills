@@ -9,15 +9,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 STOCKHOLM = ZoneInfo('Europe/Stockholm')
-# Repositories with Tengella work in recent sprints; pass --repo to replace the list.
-DEFAULT_REPOS = ['Tengella_bare', 'Cli', 'Tengella.NuGet', 'kundportalen', 'onlinebokning',
-                 'mina-stadtjanster', 'Mobilkvittens', 'planperform-mobile', 'kalkylering', 'skills']
 EVIDENCE_DIR = Path.home() / '.t3/userdata/sprint-evidence'
 SCREENSHOT_DIRS = [EVIDENCE_DIR, Path.home() / '.t3/userdata/browser-artifacts']
 PR_URL = re.compile(r'https://dev\.azure\.com/tengella/[^/\s<>)]+/_git/[^/\s<>)]+/pullrequest/\d+')
@@ -45,29 +43,34 @@ def sprint_window(sprint: int, environment: str) -> tuple[date, date]:
     return date.fromisoformat(data['startDate'][:10]), date.today()
 
 
-def completed_prs(repository: str, author: str, start: datetime, end: datetime) -> list[dict]:
-    """Page completed PRs newest-closed first and stop once they close before the window."""
-    found, cursor = [], None
+def completed_prs(author: str, start: datetime, end: datetime) -> list[dict]:
+    """Page the whole project through the CLI's v2 continuation contract."""
+    found = []
+    args = ['devops', 'pr', 'list', '--author', author, '--status', 'completed',
+            '--closed-after', start.isoformat(), '--closed-before', end.isoformat(), '--limit', '100']
+    seen = set()
     while True:
-        args = ['devops', 'pr', 'list', '--repository', repository, '--author', author,
-                '--status', 'completed', '--limit', '100']
-        data = tengella(*args, *(['--cursor', cursor] if cursor else []))
-        older = False
+        data = tengella(*args)
         for pr in data['pullRequests']:
+            repository = pr['repository']
             closed = datetime.fromisoformat(pr['closedDate'].replace('Z', '+00:00'))
-            if closed < start:
-                older = True
-                break
-            if closed <= end:
+            if start <= closed <= end:
                 found.append({'id': pr['id'], 'repository': repository, 'title': pr['title'],
                               'url': f"https://dev.azure.com/tengella/{pr['project']}/_git/{repository}/pullrequest/{pr['id']}",
                               'source': pr['sourceRef'], 'target': pr['targetRef'],
                               'created': pr['createdDate'], 'closed': pr['closedDate'],
                               'issueKeys': sorted(set(ISSUE_KEY.findall(pr['title'] + (pr.get('description') or '')))),
                               'description': (pr.get('description') or '')[:2000]})
-        cursor = data['collection'].get('nextCursor')
-        if older or not data['collection'].get('hasMore') or not cursor:
+        if not data['collection'].get('hasMore'):
             return found
+        command = data['collection'].get('nextCommand')
+        if not command or command in seen:
+            raise SystemExit('PR collection hasMore without a new nextCommand; refusing incomplete results.')
+        seen.add(command)
+        parts = shlex.split(command)
+        if parts[:4] != ['tengella', 'devops', 'pr', 'list']:
+            raise SystemExit('Unexpected PR continuation command.')
+        args = [part for part in parts[1:] if part != '--json']
 
 
 def text_of(content) -> str:
@@ -157,7 +160,7 @@ def main() -> None:
     parser.add_argument('--environment', default='production')
     parser.add_argument('--from', dest='start', type=date.fromisoformat, help='override the sprint start')
     parser.add_argument('--to', dest='end', type=date.fromisoformat, help='override the end (default today)')
-    parser.add_argument('--author', help='PR creator; default: work email from git config')
+    parser.add_argument('--author', default='me', help='PR creator; default: signed-in account')
     parser.add_argument('--repo', action='append', help='repository in project Tengella; repeatable')
     args = parser.parse_args()
 
@@ -166,13 +169,13 @@ def main() -> None:
     start = datetime.combine(start_day, time.min, STOCKHOLM).astimezone(timezone.utc)
     end = min(datetime.combine(end_day + timedelta(days=1), time.min, STOCKHOLM).astimezone(timezone.utc),
               datetime.now(timezone.utc))
-    # The CLI resolves the creator by work email; the Azure DevOps identity GUID matches nothing.
-    author = args.author or subprocess.check_output(
-        ['git', '-C', str(Path.home() / 'dev/tengella/tengella_bare'), 'config', 'user.email'], text=True).strip()
+    author = args.author
 
     out = args.pack / 'collect'
     out.mkdir(parents=True, exist_ok=True)
-    prs = [pr for repo in (args.repo or DEFAULT_REPOS) for pr in completed_prs(repo, author, start, end)]
+    prs = completed_prs(author, start, end)
+    if args.repo:
+        prs = [pr for pr in prs if pr['repository'] in args.repo]
     rows = sessions(start, end)
     images = screenshots(start, end, {p for row in rows for p in row['imageLeads']})
     window = {'from': start_day.isoformat(), 'to': end_day.isoformat(), 'startUtc': start.isoformat(), 'endUtc': end.isoformat()}
